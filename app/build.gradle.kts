@@ -1,20 +1,18 @@
-import org.jetbrains.kotlin.gradle.dsl.JvmTarget
-
 plugins {
     alias(libs.plugins.android.application)
-    alias(libs.plugins.kotlin.android)
+    // AGP 9 は Kotlin を内蔵しているので、kotlin-android プラグインは不要
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.ksp) // Room のアノテーション(@Entity など)からコードを生成する
 }
 
 android {
-    namespace = "com.example.sleeprec"
-    compileSdk = 36
+    namespace = "io.github.keiai0.sleeprec"
+    compileSdk = 37
 
     defaultConfig {
-        applicationId = "com.example.sleeprec"
+        applicationId = "io.github.keiai0.sleeprec"
         minSdk = 29
-        targetSdk = 36
+        targetSdk = 37
         versionCode = 1
         versionName = "0.1"
     }
@@ -26,12 +24,6 @@ android {
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
-    }
-}
-
-kotlin {
-    compilerOptions {
-        jvmTarget.set(JvmTarget.JVM_11)
     }
 }
 
