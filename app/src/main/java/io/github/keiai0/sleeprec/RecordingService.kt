@@ -26,6 +26,7 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import java.io.File
+import java.util.concurrent.ConcurrentLinkedQueue
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -55,6 +56,8 @@ class RecordingService : Service() {
     private var sessionId: Long? = null
     private var heartbeatJob: Job? = null
     private var wakeLock: PowerManager.WakeLock? = null
+    // 録音スレッドが積み、ハートビート(30秒ごと)と終了時に DB へまとめて書く
+    private val pendingLoudness = ConcurrentLinkedQueue<SecondLoudness>()
 
     // finishRecording() を通った(=ユーザーが終了を選んだ)か。false のまま破棄されたら「中断」
     private var finished = false
@@ -62,7 +65,9 @@ class RecordingService : Service() {
 
     override fun onCreate() {
         super.onCreate()
-        store = SessionStore(AppDatabase.get(this).sessionDao())
+        SessionPolicy.configure(this)
+        val db = AppDatabase.get(this)
+        store = SessionStore(db.sessionDao(), db.loudnessDao())
     }
 
     // bind しない(Activity から直接メソッドを呼ばない)ので null。状態共有は RecordingState で行う。
@@ -105,7 +110,7 @@ class RecordingService : Service() {
         val name = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date(startedAt))
         val file = File(getExternalFilesDir(null), "recordings/rec_$name.wav")
 
-        val rec = WavRecorder(file) { error ->
+        val rec = WavRecorder(file, onSecond = { pendingLoudness.add(it) }) { error ->
             // 録音スレッドが終わった。エラー由来ならサービスごと止める(onDestroy で中断として記録される)
             if (error != null) {
                 recorderError = error
@@ -143,10 +148,21 @@ class RecordingService : Service() {
                 delay(HEARTBEAT_INTERVAL_MS)
                 try {
                     store.heartbeat(id, System.currentTimeMillis())
+                    flushLoudness(id)
                 } catch (e: Exception) {
                     Log.e(TAG, "heartbeat failed", e)
                 }
             }
+        }
+    }
+
+    private suspend fun flushLoudness(id: Long) {
+        val batch = generateSequence { pendingLoudness.poll() }.toList()
+        if (batch.isEmpty()) return
+        try {
+            store.saveLoudness(id, batch)
+        } catch (e: Exception) {
+            Log.e(TAG, "saveLoudness failed", e)
         }
     }
 
@@ -160,7 +176,10 @@ class RecordingService : Service() {
         recorder?.stop() // ヘッダ更新とファイルクローズが終わるまで待つ
         recorder = null
         heartbeatJob?.cancel()
-        runBlocking(Dispatchers.IO) { store.finish(id, save, System.currentTimeMillis()) }
+        runBlocking(Dispatchers.IO) {
+            flushLoudness(id)
+            store.finish(id, save, System.currentTimeMillis())
+        }
         finished = true
         stopSelf() // → onDestroy() で後片付け
     }
@@ -173,7 +192,10 @@ class RecordingService : Service() {
         if (id != null && !finished) {
             // ユーザー操作を経ずに破棄された = 中断
             val reason = if (recorderError != null) InterruptReason.RECORDER_ERROR else InterruptReason.SERVICE_STOPPED
-            runBlocking(Dispatchers.IO) { store.markInterrupted(id, System.currentTimeMillis(), reason) }
+            runBlocking(Dispatchers.IO) {
+                flushLoudness(id)
+                store.markInterrupted(id, System.currentTimeMillis(), reason)
+            }
         }
 
         scope.cancel()

@@ -12,10 +12,12 @@ import java.nio.ByteOrder
 
 /**
  * AudioRecord で生PCMを読み取り、WAVファイルに書き続ける。
- * UI や Service には依存しない。将来、音量判定はこのクラスの読み取りループに足す。
+ * UI や Service には依存しない。音量は読み取りループで0.1秒フレームごとに計算し、1秒ごとに onSecond へ渡す。
  */
 class WavRecorder(
     private val outFile: File,
+    // 1秒分の音量がそろうたびに、録音スレッド上で呼ばれる(重い処理は入れない)
+    private val onSecond: (SecondLoudness) -> Unit = {},
     // 録音スレッドが終了したとき(正常停止でも異常でも)に、そのスレッド上で呼ばれる
     private val onFinished: (error: Throwable?) -> Unit,
 ) {
@@ -75,6 +77,7 @@ class WavRecorder(
         // 後で音量判定をするときの「1フレーム」の単位にもちょうどよい。
         val readBuf = ByteArray(BYTES_PER_SECOND / 10)
         var lastHeaderUpdate = 0L
+        val aggregator = Loudness.SecondAggregator()
 
         try {
             RandomAccessFile(outFile, "rw").use { raf ->
@@ -88,7 +91,8 @@ class WavRecorder(
                     val n = record.read(readBuf, 0, readBuf.size)
                     if (n < 0) throw IllegalStateException("AudioRecord.read error: $n")
                     if (n == 0) continue
-                    raf.write(readBuf, 0, n) // ← 将来ここで readBuf を見て音量判定する
+                    raf.write(readBuf, 0, n)
+                    aggregator.add(Loudness.frameDb(readBuf, n))?.let(onSecond)
                     dataBytes += n
 
                     // 約1秒ごとにヘッダのサイズ欄を更新。アプリが kill されても再生可能なファイルが残る

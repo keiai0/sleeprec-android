@@ -59,6 +59,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        SessionPolicy.configure(this)
         stopRequested = intent?.getBooleanExtra(EXTRA_REQUEST_STOP, false) == true
         setContent {
             MaterialTheme {
@@ -88,7 +89,7 @@ private fun RecorderScreen(stopRequested: Boolean, onStopRequestConsumed: () -> 
     val context = LocalContext.current
     val activity = context as Activity
     val scope = rememberCoroutineScope()
-    val store = remember { SessionStore(AppDatabase.get(context).sessionDao()) }
+    val store = remember { AppDatabase.get(context).let { SessionStore(it.sessionDao(), it.loudnessDao()) } }
 
     val isRecording by RecordingState.isRecording.collectAsState()
     var permissionUi by remember { mutableStateOf(PermissionUi.None) }

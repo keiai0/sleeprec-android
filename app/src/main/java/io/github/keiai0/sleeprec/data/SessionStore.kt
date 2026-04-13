@@ -1,15 +1,23 @@
 package io.github.keiai0.sleeprec.data
 
+import io.github.keiai0.sleeprec.SecondLoudness
 import io.github.keiai0.sleeprec.SessionPolicy
 import java.io.File
 
 /** セッションの作成・終了・中断の扱いをまとめる。保存するかどうかの判断は SessionPolicy に従う。 */
-class SessionStore(private val dao: SessionDao) {
+class SessionStore(private val dao: SessionDao, private val loudnessDao: LoudnessDao) {
 
     suspend fun start(startedAt: Long, wavPath: String): Long =
         dao.insert(
             Session(startedAt = startedAt, status = SessionStatus.RECORDING, lastAliveAt = startedAt, wavPath = wavPath)
         )
+
+    suspend fun saveLoudness(id: Long, samples: List<SecondLoudness>) {
+        if (samples.isEmpty()) return
+        loudnessDao.insertAll(samples.map { LoudnessSample(id, it.second, it.avgDb, it.maxDb) })
+    }
+
+    suspend fun loudness(id: Long): List<LoudnessSample> = loudnessDao.forSession(id)
 
     suspend fun heartbeat(id: Long, now: Long) = dao.updateLastAlive(id, now)
 
