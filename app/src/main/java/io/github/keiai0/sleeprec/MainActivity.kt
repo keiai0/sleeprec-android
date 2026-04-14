@@ -4,6 +4,7 @@ import android.Manifest
 import android.app.Activity
 import android.content.Context
 import android.content.Intent
+import android.content.pm.ApplicationInfo
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
@@ -89,9 +90,10 @@ private fun RecorderScreen(stopRequested: Boolean, onStopRequestConsumed: () -> 
     val context = LocalContext.current
     val activity = context as Activity
     val scope = rememberCoroutineScope()
-    val store = remember { AppDatabase.get(context).let { SessionStore(it.sessionDao(), it.loudnessDao()) } }
+    val store = remember { AppDatabase.get(context).let { SessionStore(it.sessionDao(), it.loudnessDao(), it.audioEventDao()) } }
 
     val isRecording by RecordingState.isRecording.collectAsState()
+    val debuggable = context.applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE != 0
     var permissionUi by remember { mutableStateOf(PermissionUi.None) }
     // 終了ダイアログ: null なら非表示。値は、ダイアログを開いた時点の経過時間(ミリ秒)
     var stopElapsedMs by remember { mutableStateOf<Long?>(null) }
@@ -120,6 +122,7 @@ private fun RecorderScreen(stopRequested: Boolean, onStopRequestConsumed: () -> 
             if (!RecordingState.isRecording.value) {
                 InterruptionDetector.markStale(context, store, force = false)
             }
+            store.expireOldAudio(System.currentTimeMillis()) // 保持期間を過ぎた音声を削除
             store.unacknowledgedInterrupted()
         }
     }
@@ -194,6 +197,8 @@ private fun RecorderScreen(stopRequested: Boolean, onStopRequestConsumed: () -> 
             Text(text = formatClock(nowMs - start), style = MaterialTheme.typography.displayMedium)
         }
 
+        if (isRecording && debuggable) DebugPanel()
+
         if (isRecording) {
             Button(onClick = ::requestStop) { Text(stringResource(R.string.button_stop)) }
         } else {
@@ -228,6 +233,21 @@ private fun RecorderScreen(stopRequested: Boolean, onStopRequestConsumed: () -> 
             interrupted = interrupted - session
             scope.launch(Dispatchers.IO) { store.acknowledge(session.id) }
         }
+    }
+}
+
+/** 閾値調整用(デバッグビルドのみ)。現在の dB、イベントの開始/終了の閾値、検出したイベント数を出す。 */
+@Composable
+private fun DebugPanel() {
+    val db by RecordingState.currentDb.collectAsState()
+    val count by RecordingState.eventCount.collectAsState()
+    val active = db >= Thresholds.EVENT_START_DB
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(stringResource(R.string.debug_current_db, db), style = MaterialTheme.typography.titleLarge)
+        // 0.1 秒ごとの値が閾値を超えているか(超えていればイベント開始の条件を満たす)
+        Text(stringResource(if (active) R.string.debug_above else R.string.debug_below))
+        Text(stringResource(R.string.debug_thresholds, Thresholds.EVENT_START_DB, Thresholds.EVENT_END_DB))
+        Text(stringResource(R.string.debug_event_count, count))
     }
 }
 

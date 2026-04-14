@@ -28,6 +28,10 @@ interface SessionDao {
     @Query("SELECT * FROM sessions WHERE status = 'INTERRUPTED' AND interruptionAcknowledged = 0 ORDER BY startedAt")
     suspend fun unacknowledgedInterrupted(): List<Session>
 
+    // 録音が終わっていて、cutoff より前に始まったセッション(全録音 WAV の自動削除の対象)
+    @Query("SELECT * FROM sessions WHERE status != 'RECORDING' AND startedAt < :cutoff")
+    suspend fun finishedBefore(cutoff: Long): List<Session>
+
     @Query("UPDATE sessions SET lastAliveAt = :time WHERE id = :id")
     suspend fun updateLastAlive(id: Long, time: Long)
 }

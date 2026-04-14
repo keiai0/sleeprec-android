@@ -13,4 +13,19 @@ object RecordingState {
     fun set(recording: Boolean) {
         _isRecording.value = recording
     }
+
+    // 閾値調整用のデバッグ表示(Phase 3)。録音スレッドが約0.1秒ごとに更新する
+    private val _currentDb = MutableStateFlow(Loudness.FLOOR_DB)
+    val currentDb: StateFlow<Float> = _currentDb
+
+    private val _eventCount = MutableStateFlow(0)
+    val eventCount: StateFlow<Int> = _eventCount
+
+    fun setCurrentDb(db: Float) {
+        _currentDb.value = db
+    }
+
+    fun setEventCount(count: Int) {
+        _eventCount.value = count
+    }
 }

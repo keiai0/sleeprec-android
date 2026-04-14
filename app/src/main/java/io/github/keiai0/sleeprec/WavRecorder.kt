@@ -18,16 +18,18 @@ class WavRecorder(
     private val outFile: File,
     // 1秒分の音量がそろうたびに、録音スレッド上で呼ばれる(重い処理は入れない)
     private val onSecond: (SecondLoudness) -> Unit = {},
+    // 音声イベントが確定するたびに、録音スレッド上で呼ばれる(重い処理は入れない)
+    private val onEvent: (DetectedEvent) -> Unit = {},
+    // 0.1秒フレームごとの音量。デバッグ表示用
+    private val onFrame: (Float) -> Unit = {},
     // 録音スレッドが終了したとき(正常停止でも異常でも)に、そのスレッド上で呼ばれる
     private val onFinished: (error: Throwable?) -> Unit,
 ) {
     companion object {
         private const val TAG = "WavRecorder"
-        const val SAMPLE_RATE = 16_000
-        private const val CHANNELS = 1
-        private const val BITS_PER_SAMPLE = 16
-        private const val BYTES_PER_SECOND = SAMPLE_RATE * CHANNELS * BITS_PER_SAMPLE / 8 // 32000
-        private const val HEADER_SIZE = 44
+        private const val SAMPLE_RATE = WavFormat.SAMPLE_RATE
+        private const val BYTES_PER_SECOND = WavFormat.BYTES_PER_SECOND
+        private const val HEADER_SIZE = WavFormat.HEADER_SIZE
     }
 
     @Volatile private var running = false
@@ -78,12 +80,13 @@ class WavRecorder(
         val readBuf = ByteArray(BYTES_PER_SECOND / 10)
         var lastHeaderUpdate = 0L
         val aggregator = Loudness.SecondAggregator()
+        val detector = EventDetector()
 
         try {
             RandomAccessFile(outFile, "rw").use { raf ->
                 raf.setLength(0)
                 // データ長がまだ分からないので、サイズ欄 0 のヘッダを先頭に置いて始める
-                raf.write(buildHeader(0))
+                raf.write(WavFormat.header(0))
                 record.startRecording()
 
                 while (running) {
@@ -92,7 +95,10 @@ class WavRecorder(
                     if (n < 0) throw IllegalStateException("AudioRecord.read error: $n")
                     if (n == 0) continue
                     raf.write(readBuf, 0, n)
-                    aggregator.add(Loudness.frameDb(readBuf, n))?.let(onSecond)
+                    val db = Loudness.frameDb(readBuf, n)
+                    onFrame(db)
+                    aggregator.add(db)?.let(onSecond)
+                    detector.feed(readBuf, n, db)?.let(onEvent)
                     dataBytes += n
 
                     // 約1秒ごとにヘッダのサイズ欄を更新。アプリが kill されても再生可能なファイルが残る
@@ -101,7 +107,8 @@ class WavRecorder(
                         lastHeaderUpdate = dataBytes
                     }
                 }
-                // 正常停止: 最終的なサイズをヘッダに書く
+                // 正常停止: イベントの途中なら確定させ、最終的なサイズをヘッダに書く
+                detector.flush()?.let(onEvent)
                 updateHeaderSizes(raf, dataBytes)
             }
         } catch (t: Throwable) {
@@ -123,44 +130,5 @@ class WavRecorder(
         raf.seek(40)
         raf.write(b.putInt(0, dataBytes.toInt()).array())        // dataチャンクサイズ = PCMのバイト数
         raf.seek(HEADER_SIZE + dataBytes)                        // 続きは PCM の末尾から
-    }
-
-    /**
-     * 44バイトの標準WAV(PCM)ヘッダ。数値はすべてリトルエンディアン。
-     *
-     *  offset size 内容
-     *   0     4    "RIFF"         … これは RIFF 形式のファイルという印
-     *   4     4    ファイル全長-8  … ここから先のバイト数
-     *   8     4    "WAVE"         … 中身は WAV
-     *  12     4    "fmt "         … フォーマット情報チャンクの開始
-     *  16     4    16             … fmt チャンクの長さ(PCMなら16固定)
-     *  20     2    1              … 圧縮なしのリニアPCM
-     *  22     2    チャンネル数     … 1(モノラル)
-     *  24     4    サンプルレート   … 16000
-     *  28     4    バイトレート     … レート × ch × 2 = 32000 (1秒あたりのバイト数)
-     *  32     2    ブロックサイズ   … ch × 2 = 2 (1サンプル時点のバイト数)
-     *  34     2    ビット深度       … 16
-     *  36     4    "data"         … 音声データチャンクの開始
-     *  40     4    PCMのバイト数   … この後に続く生データの長さ
-     *  44     …    PCM 本体
-     */
-    private fun buildHeader(dataBytes: Long): ByteArray {
-        val byteRate = BYTES_PER_SECOND
-        val blockAlign = CHANNELS * BITS_PER_SAMPLE / 8
-        return ByteBuffer.allocate(HEADER_SIZE).order(ByteOrder.LITTLE_ENDIAN).apply {
-            put("RIFF".toByteArray(Charsets.US_ASCII))
-            putInt((36 + dataBytes).toInt())
-            put("WAVE".toByteArray(Charsets.US_ASCII))
-            put("fmt ".toByteArray(Charsets.US_ASCII))
-            putInt(16)
-            putShort(1)
-            putShort(CHANNELS.toShort())
-            putInt(SAMPLE_RATE)
-            putInt(byteRate)
-            putShort(blockAlign.toShort())
-            putShort(BITS_PER_SAMPLE.toShort())
-            put("data".toByteArray(Charsets.US_ASCII))
-            putInt(dataBytes.toInt())
-        }.array()
     }
 }

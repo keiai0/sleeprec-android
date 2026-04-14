@@ -14,6 +14,7 @@ import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
 import io.github.keiai0.sleeprec.data.AppDatabase
+import io.github.keiai0.sleeprec.data.AudioEvent
 import io.github.keiai0.sleeprec.data.InterruptReason
 import io.github.keiai0.sleeprec.data.SessionStore
 import kotlinx.coroutines.CoroutineScope
@@ -21,6 +22,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
@@ -58,6 +60,10 @@ class RecordingService : Service() {
     private var wakeLock: PowerManager.WakeLock? = null
     // 録音スレッドが積み、ハートビート(30秒ごと)と終了時に DB へまとめて書く
     private val pendingLoudness = ConcurrentLinkedQueue<SecondLoudness>()
+    // 録音スレッドが検出したイベントを、DB・ファイルの書き込み側へ渡す(Go の chan に近い)
+    private val events = Channel<DetectedEvent>(Channel.UNLIMITED)
+    private var eventJob: Job? = null
+    private var sessionStartedAt = 0L
 
     // finishRecording() を通った(=ユーザーが終了を選んだ)か。false のまま破棄されたら「中断」
     private var finished = false
@@ -67,7 +73,7 @@ class RecordingService : Service() {
         super.onCreate()
         SessionPolicy.configure(this)
         val db = AppDatabase.get(this)
-        store = SessionStore(db.sessionDao(), db.loudnessDao())
+        store = SessionStore(db.sessionDao(), db.loudnessDao(), db.audioEventDao())
     }
 
     // bind しない(Activity から直接メソッドを呼ばない)ので null。状態共有は RecordingState で行う。
@@ -87,6 +93,7 @@ class RecordingService : Service() {
         if (recorder != null) return // 二重開始防止
 
         val startedAt = System.currentTimeMillis()
+        sessionStartedAt = startedAt
 
         // startForegroundService() を受けたら 5 秒以内に startForeground() を呼ぶ決まり。最初にやる。
         try {
@@ -110,7 +117,12 @@ class RecordingService : Service() {
         val name = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date(startedAt))
         val file = File(getExternalFilesDir(null), "recordings/rec_$name.wav")
 
-        val rec = WavRecorder(file, onSecond = { pendingLoudness.add(it) }) { error ->
+        val rec = WavRecorder(
+            file,
+            onSecond = { pendingLoudness.add(it) },
+            onEvent = { events.trySend(it) },
+            onFrame = RecordingState::setCurrentDb,
+        ) { error ->
             // 録音スレッドが終わった。エラー由来ならサービスごと止める(onDestroy で中断として記録される)
             if (error != null) {
                 recorderError = error
@@ -131,12 +143,14 @@ class RecordingService : Service() {
         val id = runBlocking(Dispatchers.IO) { store.start(startedAt, file.absolutePath) }
         sessionId = id
         startHeartbeat(id)
+        startEventWriter(id)
 
         // 画面オフ+長時間でも CPU を眠らせない
         val pm = getSystemService(Context.POWER_SERVICE) as PowerManager
         wakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "SleepRec:recording")
             .apply { acquire(WAKE_LOCK_TIMEOUT_MS) }
 
+        RecordingState.setEventCount(0)
         RecordingState.set(true)
     }
 
@@ -154,6 +168,36 @@ class RecordingService : Service() {
                 }
             }
         }
+    }
+
+    // 検出されたイベントを、届いた順にクリップ(WAV)と DB 行として保存する
+    private fun startEventWriter(id: Long) {
+        eventJob = scope.launch {
+            for (e in events) {
+                try {
+                    val startedAt = sessionStartedAt + e.offsetMs
+                    val clip = File(getExternalFilesDir(null), "clips/session_$id/clip_${startedAt}.wav")
+                    WavFormat.writeFile(clip, e.pcm)
+                    store.saveEvent(
+                        AudioEvent(
+                            sessionId = id, startedAt = startedAt, durationMs = e.durationMs,
+                            maxDb = e.maxDb, avgDb = e.avgDb, clipPath = clip.absolutePath,
+                        )
+                    )
+                    RecordingState.setEventCount(store.eventCount(id))
+                } catch (ex: Exception) {
+                    Log.e(TAG, "saveEvent failed", ex)
+                }
+            }
+        }
+    }
+
+    /** 録音が止まったあと、届いているイベントをすべて保存し終えてから戻る。 */
+    private fun drainEvents() {
+        events.close()
+        val job = eventJob ?: return
+        runBlocking { job.join() }
+        eventJob = null
     }
 
     private suspend fun flushLoudness(id: Long) {
@@ -175,10 +219,12 @@ class RecordingService : Service() {
         }
         recorder?.stop() // ヘッダ更新とファイルクローズが終わるまで待つ
         recorder = null
+        drainEvents()
         heartbeatJob?.cancel()
         runBlocking(Dispatchers.IO) {
             flushLoudness(id)
             store.finish(id, save, System.currentTimeMillis())
+            store.expireOldAudio(System.currentTimeMillis())
         }
         finished = true
         stopSelf() // → onDestroy() で後片付け
@@ -186,6 +232,7 @@ class RecordingService : Service() {
 
     override fun onDestroy() {
         recorder?.stop()
+        drainEvents()
         heartbeatJob?.cancel()
 
         val id = sessionId
