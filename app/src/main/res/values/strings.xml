@@ -17,6 +17,29 @@
     <string name="debug_thresholds">開始 %1$.0f / 終了 %2$.0f dBFS</string>
     <string name="debug_event_count">検出イベント: %1$d 件</string>
 
+    <!-- 記録一覧・再生 -->
+    <string name="button_history">記録一覧</string>
+    <string name="back">← 戻る</string>
+    <string name="list_title">記録一覧</string>
+    <string name="list_empty">保存された記録はありません。</string>
+    <string name="list_row_detail">%1$s ・ %2$s ・ 音声イベント %3$d 件</string>
+    <string name="status_completed">通常</string>
+    <string name="status_short">Short Sleep</string>
+    <string name="status_interrupted">中断</string>
+    <string name="status_recording">計測中</string>
+    <string name="detail_summary">計測時間 %1$s ・ %2$s</string>
+    <string name="graph_hint">グラフをタップすると、最も近い音声を再生します。</string>
+    <string name="clips_title">音声イベント(%1$d 件)</string>
+    <string name="clips_empty">音声イベントはありません。</string>
+    <string name="clip_detail">長さ %1$s ・ 最大 %2$.1f dBFS ・ 開始から %3$s</string>
+    <string name="audio_deleted">音声は削除済み</string>
+    <string name="play">再生</string>
+    <string name="pause">一時停止</string>
+    <string name="delete">削除</string>
+    <string name="cancel">キャンセル</string>
+    <string name="delete_title">このイベントを削除しますか？</string>
+    <string name="delete_body">音声とイベントの記録が削除されます。元に戻せません。</string>
+
     <!-- 権限 -->
     <string name="permission_denied">録音にはマイクの許可が必要です。もう一度「録音開始」を押してください。</string>
     <string name="permission_permanently_denied">マイクの許可が拒否されています。設定画面から許可してください。</string>

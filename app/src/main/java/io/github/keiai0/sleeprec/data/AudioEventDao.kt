@@ -25,6 +25,9 @@ interface AudioEventDao {
     @Query("SELECT * FROM audio_events WHERE clipPath IS NOT NULL AND startedAt < :cutoff")
     suspend fun clipsOlderThan(cutoff: Long): List<AudioEvent>
 
+    @Query("DELETE FROM audio_events WHERE id = :id")
+    suspend fun delete(id: Long)
+
     @Query("SELECT clipPath FROM audio_events WHERE sessionId = :sessionId AND clipPath IS NOT NULL")
     suspend fun clipPaths(sessionId: Long): List<String>
 

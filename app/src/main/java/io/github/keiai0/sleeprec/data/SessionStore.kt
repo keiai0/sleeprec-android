@@ -1,5 +1,6 @@
 package io.github.keiai0.sleeprec.data
 
+import android.content.Context
 import io.github.keiai0.sleeprec.SecondLoudness
 import io.github.keiai0.sleeprec.SessionPolicy
 import io.github.keiai0.sleeprec.Thresholds
@@ -11,6 +12,11 @@ class SessionStore(
     private val loudnessDao: LoudnessDao,
     private val eventDao: AudioEventDao,
 ) {
+
+    companion object {
+        fun create(context: Context): SessionStore =
+            AppDatabase.get(context).let { SessionStore(it.sessionDao(), it.loudnessDao(), it.audioEventDao()) }
+    }
 
     suspend fun start(startedAt: Long, wavPath: String): Long =
         dao.insert(
@@ -32,6 +38,16 @@ class SessionStore(
         eventDao.insert(event)
         val over = eventDao.clipsOverLimit(event.sessionId, Thresholds.MAX_CLIPS_PER_SESSION)
         deleteClips(over)
+    }
+
+    suspend fun finishedSessions(): List<Session> = dao.finished()
+
+    suspend fun session(id: Long): Session? = dao.get(id)
+
+    /** クリップの音声ファイルと、イベントの行の両方を削除する。 */
+    suspend fun deleteEvent(event: AudioEvent) {
+        event.clipPath?.let { File(it).delete() }
+        eventDao.delete(event.id)
     }
 
     suspend fun eventCount(id: Long): Int = eventDao.count(id)

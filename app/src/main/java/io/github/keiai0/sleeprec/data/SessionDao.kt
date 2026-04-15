@@ -22,6 +22,10 @@ interface SessionDao {
     @Query("SELECT * FROM sessions WHERE id = :id")
     suspend fun get(id: Long): Session?
 
+    // 一覧用。計測中を除いて、新しい順
+    @Query("SELECT * FROM sessions WHERE status != 'RECORDING' ORDER BY startedAt DESC")
+    suspend fun finished(): List<Session>
+
     @Query("SELECT * FROM sessions WHERE status = 'RECORDING'")
     suspend fun recording(): List<Session>
 
