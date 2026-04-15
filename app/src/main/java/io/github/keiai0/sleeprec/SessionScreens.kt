@@ -1,6 +1,7 @@
 package io.github.keiai0.sleeprec
 
-import android.content.Context
+import android.content.pm.ApplicationInfo
+import android.util.Log
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -38,6 +39,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.io.File
 import java.text.DateFormat
 import java.util.Date
 import java.util.Locale
@@ -116,6 +118,24 @@ fun SessionDetailScreen(sessionId: Long, onBack: () -> Unit) {
     var events by remember { mutableStateOf<List<AudioEvent>>(emptyList()) }
     var deleting by remember { mutableStateOf<AudioEvent?>(null) }
 
+    // デバッグビルドのみ: クリップを YAMNet で分類して、上位のクラスと推論時間を出す(Phase 4 のスパイク)
+    val debuggable = context.applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE != 0
+    val classifier = remember { lazy { YamnetClassifier(context) } }
+    DisposableEffect(Unit) { onDispose { if (classifier.isInitialized()) classifier.value.close() } }
+    val analyze: (suspend (AudioEvent) -> String)? = if (!debuggable) null else { e ->
+        withContext(Dispatchers.Default) {
+            try {
+                val yamnet = classifier.value
+                val c = yamnet.classifyWav(File(e.clipPath!!).readBytes())
+                val top = AudioWindows.topK(c.scores, 5).joinToString("\n") { (i, sc) -> "%s %.2f".format(yamnet.labels[i], sc) }
+                "$top\nSnoring %.2f / Cough %.2f\n%d 窓 / %d ms".format(c.scores[38], c.scores[42], c.windows, c.elapsedMs)
+            } catch (ex: Throwable) {
+                Log.e("Analyze", "failed", ex)
+                "失敗: ${ex.message}"
+            }
+        }
+    }
+
     suspend fun load() = withContext(Dispatchers.IO) {
         session = store.session(sessionId)
         samples = store.loudness(sessionId)
@@ -136,36 +156,37 @@ fun SessionDetailScreen(sessionId: Long, onBack: () -> Unit) {
 
     Column(Modifier.fillMaxSize().padding(16.dp)) {
         TextButton(onClick = onBack) { Text(stringResource(R.string.back)) }
-        Text(formatDateTime(s.startedAt), style = MaterialTheme.typography.headlineSmall)
-        Text(
-            stringResource(R.string.detail_summary, formatMs(sessionEndMs(s)), stringResource(statusLabel(s.status))),
-            Modifier.padding(bottom = 12.dp),
-        )
-
-        LoudnessGraph(
-            samples = samples,
-            events = events,
-            sessionStartedAt = s.startedAt,
-            totalMs = totalMs,
-            playingId = player.currentId,
-            playPositionMs = player.positionMs,
-            onTap = { tapMs -> ClipPlayback.nearestPlayable(events, s.startedAt, tapMs)?.let(player::play) },
-        )
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            Text(formatTime(s.startedAt), style = MaterialTheme.typography.labelSmall)
-            Text(formatTime(s.startedAt + totalMs), style = MaterialTheme.typography.labelSmall)
-        }
-        Text(stringResource(R.string.graph_hint), style = MaterialTheme.typography.labelSmall)
-
-        Text(
-            stringResource(R.string.clips_title, events.size),
-            style = MaterialTheme.typography.titleMedium,
-            modifier = Modifier.padding(top = 16.dp, bottom = 4.dp),
-        )
-        if (events.isEmpty()) Text(stringResource(R.string.clips_empty))
+        // 見出し・グラフ・クリップ一覧を 1 つのリストにして、画面全体をスクロールできるようにする
         LazyColumn {
+            item {
+                Text(formatDateTime(s.startedAt), style = MaterialTheme.typography.headlineSmall)
+                Text(
+                    stringResource(R.string.detail_summary, formatMs(sessionEndMs(s)), stringResource(statusLabel(s.status))),
+                    Modifier.padding(bottom = 12.dp),
+                )
+                LoudnessGraph(
+                    samples = samples,
+                    events = events,
+                    sessionStartedAt = s.startedAt,
+                    totalMs = totalMs,
+                    playingId = player.currentId,
+                    playPositionMs = player.positionMs,
+                    onTap = { tapMs -> ClipPlayback.nearestPlayable(events, s.startedAt, tapMs)?.let(player::play) },
+                )
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                    Text(formatTime(s.startedAt), style = MaterialTheme.typography.labelSmall)
+                    Text(formatTime(s.startedAt + totalMs), style = MaterialTheme.typography.labelSmall)
+                }
+                Text(stringResource(R.string.graph_hint), style = MaterialTheme.typography.labelSmall)
+                Text(
+                    stringResource(R.string.clips_title, events.size),
+                    style = MaterialTheme.typography.titleMedium,
+                    modifier = Modifier.padding(top = 16.dp, bottom = 4.dp),
+                )
+                if (events.isEmpty()) Text(stringResource(R.string.clips_empty))
+            }
             items(events, key = { it.id }) { e ->
-                ClipRow(e, s.startedAt, player, context, onDelete = { deleting = e })
+                ClipRow(e, s.startedAt, player, onDelete = { deleting = e }, analyze = analyze)
                 HorizontalDivider()
             }
         }
@@ -192,28 +213,38 @@ fun SessionDetailScreen(sessionId: Long, onBack: () -> Unit) {
 }
 
 @Composable
-private fun ClipRow(e: AudioEvent, sessionStart: Long, player: ClipPlayer, context: Context, onDelete: () -> Unit) {
+private fun ClipRow(
+    e: AudioEvent, sessionStart: Long, player: ClipPlayer, onDelete: () -> Unit,
+    analyze: (suspend (AudioEvent) -> String)?,
+) {
+    val scope = rememberCoroutineScope()
+    var analysis by remember { mutableStateOf<String?>(null) }
     val hasAudio = e.clipPath != null
     val current = player.currentId == e.id
     Column(Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Column(Modifier.weight(1f)) {
-                Text(formatTime(e.startedAt), style = MaterialTheme.typography.titleSmall)
-                Text(
-                    stringResource(
-                        R.string.clip_detail,
-                        formatMs(e.durationMs), e.maxDb, formatMs(e.startedAt - sessionStart),
-                    )
-                )
-                if (!hasAudio) Text(stringResource(R.string.audio_deleted), style = MaterialTheme.typography.labelMedium)
-            }
+        Text(formatTime(e.startedAt), style = MaterialTheme.typography.titleSmall)
+        Text(
+            stringResource(
+                R.string.clip_detail,
+                formatMs(e.durationMs), e.maxDb, formatMs(e.startedAt - sessionStart),
+            )
+        )
+        if (!hasAudio) Text(stringResource(R.string.audio_deleted), style = MaterialTheme.typography.labelMedium)
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
             if (hasAudio) {
                 TextButton(onClick = { if (current) player.togglePause() else player.play(e) }) {
                     Text(stringResource(if (current && player.isPlaying) R.string.pause else R.string.play))
                 }
             }
+            if (analyze != null && hasAudio) {
+                TextButton(onClick = {
+                    analysis = "…"
+                    scope.launch { analysis = analyze(e) }
+                }) { Text(stringResource(R.string.debug_analyze)) }
+            }
             TextButton(onClick = onDelete) { Text(stringResource(R.string.delete)) }
         }
+        analysis?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
         if (current) {
             Slider(
                 value = player.positionMs.toFloat(),

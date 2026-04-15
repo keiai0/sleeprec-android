@@ -15,6 +15,7 @@
     <string name="debug_above">▲ 開始閾値を超えています</string>
     <string name="debug_below">▼ 開始閾値未満</string>
     <string name="debug_thresholds">開始 %1$.0f / 終了 %2$.0f dBFS</string>
+    <string name="debug_analyze">分析(デバッグ)</string>
     <string name="debug_event_count">検出イベント: %1$d 件</string>
 
     <!-- 記録一覧・再生 -->
