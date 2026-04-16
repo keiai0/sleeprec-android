@@ -118,6 +118,13 @@ fun SessionDetailScreen(sessionId: Long, onBack: () -> Unit) {
     var events by remember { mutableStateOf<List<AudioEvent>>(emptyList()) }
     var deleting by remember { mutableStateOf<AudioEvent?>(null) }
 
+    suspend fun load() = withContext(Dispatchers.IO) {
+        session = store.session(sessionId)
+        samples = store.loudness(sessionId)
+        events = store.events(sessionId)
+    }
+    LaunchedEffect(sessionId) { load() }
+
     // デバッグビルドのみ: クリップを YAMNet で分類して、上位のクラスと推論時間を出す(Phase 4 のスパイク)
     val debuggable = context.applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE != 0
     val classifier = remember { lazy { YamnetClassifier(context) } }
@@ -128,20 +135,17 @@ fun SessionDetailScreen(sessionId: Long, onBack: () -> Unit) {
                 val yamnet = classifier.value
                 val c = yamnet.classifyWav(File(e.clipPath!!).readBytes())
                 val top = AudioWindows.topK(c.scores, 5).joinToString("\n") { (i, sc) -> "%s %.2f".format(yamnet.labels[i], sc) }
-                "$top\nSnoring %.2f / Cough %.2f\n%d 窓 / %d ms".format(c.scores[38], c.scores[42], c.windows, c.elapsedMs)
+                // 分類し直して、種別を保存する(録音時に分類されなかった過去のクリップにも使える)
+                val (type, score) = EventTypeMapper.decide(c.scores)
+                withContext(Dispatchers.IO) { store.updateAutoType(e.id, type, score) }
+                load()
+                "$top\n→ %s %.2f\n%d 窓 / %d ms".format(context.getString(type.labelRes), score, c.windows, c.elapsedMs)
             } catch (ex: Throwable) {
                 Log.e("Analyze", "failed", ex)
                 "失敗: ${ex.message}"
             }
         }
     }
-
-    suspend fun load() = withContext(Dispatchers.IO) {
-        session = store.session(sessionId)
-        samples = store.loudness(sessionId)
-        events = store.events(sessionId)
-    }
-    LaunchedEffect(sessionId) { load() }
 
     // 再生中は、位置を 0.2 秒ごとに画面へ反映する
     LaunchedEffect(player.isPlaying) {
@@ -178,6 +182,18 @@ fun SessionDetailScreen(sessionId: Long, onBack: () -> Unit) {
                     Text(formatTime(s.startedAt + totalMs), style = MaterialTheme.typography.labelSmall)
                 }
                 Text(stringResource(R.string.graph_hint), style = MaterialTheme.typography.labelSmall)
+                SnoreSummary.of(events)?.let { snore ->
+                    Text(
+                        stringResource(R.string.snore_title),
+                        style = MaterialTheme.typography.titleMedium,
+                        modifier = Modifier.padding(top = 16.dp),
+                    )
+                    Text(stringResource(R.string.snore_detail, snore.count, formatMs(snore.totalMs), snore.maxDb, snore.avgDb))
+                    Text(
+                        stringResource(R.string.snore_times, snore.times.joinToString(" ") { formatTime(it).take(5) }),
+                        style = MaterialTheme.typography.labelSmall,
+                    )
+                }
                 Text(
                     stringResource(R.string.clips_title, events.size),
                     style = MaterialTheme.typography.titleMedium,
@@ -222,7 +238,10 @@ private fun ClipRow(
     val hasAudio = e.clipPath != null
     val current = player.currentId == e.id
     Column(Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
-        Text(formatTime(e.startedAt), style = MaterialTheme.typography.titleSmall)
+        Text(
+            "${formatTime(e.startedAt)}  ${stringResource(e.type.labelRes)}",
+            style = MaterialTheme.typography.titleSmall,
+        )
         Text(
             stringResource(
                 R.string.clip_detail,

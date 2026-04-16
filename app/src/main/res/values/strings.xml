@@ -41,6 +41,19 @@
     <string name="delete_title">このイベントを削除しますか？</string>
     <string name="delete_body">音声とイベントの記録が削除されます。元に戻せません。</string>
 
+    <!-- 音の種別 -->
+    <string name="type_unclassified">未分類</string>
+    <string name="type_snoring">いびき</string>
+    <string name="type_sleep_talk">寝言(話し声)</string>
+    <string name="type_cough">咳</string>
+    <string name="type_fart">おなら</string>
+    <string name="type_footsteps">足音</string>
+    <string name="type_animal">動物</string>
+    <string name="type_other">その他</string>
+    <string name="snore_title">いびき(目安)</string>
+    <string name="snore_detail">%1$d 回 ・ 合計 %2$s ・ 最大 %3$.1f / 平均 %4$.1f dBFS</string>
+    <string name="snore_times">発生時刻: %1$s</string>
+
     <!-- 権限 -->
     <string name="permission_denied">録音にはマイクの許可が必要です。もう一度「録音開始」を押してください。</string>
     <string name="permission_permanently_denied">マイクの許可が拒否されています。設定画面から許可してください。</string>

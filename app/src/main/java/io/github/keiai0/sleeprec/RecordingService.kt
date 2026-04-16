@@ -15,6 +15,7 @@ import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
 import io.github.keiai0.sleeprec.data.AppDatabase
 import io.github.keiai0.sleeprec.data.AudioEvent
+import io.github.keiai0.sleeprec.data.EventType
 import io.github.keiai0.sleeprec.data.InterruptReason
 import io.github.keiai0.sleeprec.data.SessionStore
 import kotlinx.coroutines.CoroutineScope
@@ -63,6 +64,8 @@ class RecordingService : Service() {
     // 録音スレッドが検出したイベントを、DB・ファイルの書き込み側へ渡す(Go の chan に近い)
     private val events = Channel<DetectedEvent>(Channel.UNLIMITED)
     private var eventJob: Job? = null
+    // 音の分類器。イベントの書き込みコルーチンだけが使う(スレッドセーフではないため)。初回に読み込む
+    private val classifier = lazy { YamnetClassifier(applicationContext) }
     private var sessionStartedAt = 0L
 
     // finishRecording() を通った(=ユーザーが終了を選んだ)か。false のまま破棄されたら「中断」
@@ -178,10 +181,13 @@ class RecordingService : Service() {
                     val startedAt = sessionStartedAt + e.offsetMs
                     val clip = File(getExternalFilesDir(null), "clips/session_$id/clip_${startedAt}.wav")
                     WavFormat.writeFile(clip, e.pcm)
+                    // 音声を残さない(上限超え)イベントも、ここで分類しておく。失敗しても保存は続ける
+                    val (type, score) = classify(e)
                     store.saveEvent(
                         AudioEvent(
                             sessionId = id, startedAt = startedAt, durationMs = e.durationMs,
-                            maxDb = e.maxDb, avgDb = e.avgDb, clipPath = clip.absolutePath,
+                            maxDb = e.maxDb, avgDb = e.avgDb, type = type, typeScore = score,
+                            clipPath = clip.absolutePath,
                         )
                     )
                     RecordingState.setEventCount(store.eventCount(id))
@@ -190,6 +196,13 @@ class RecordingService : Service() {
                 }
             }
         }
+    }
+
+    private fun classify(e: DetectedEvent): Pair<EventType, Float> = try {
+        EventTypeMapper.decide(classifier.value.classifyPcm(e.pcm).scores)
+    } catch (ex: Throwable) {
+        Log.e(TAG, "classify failed", ex)
+        EventType.UNCLASSIFIED to 0f
     }
 
     /** 録音が止まったあと、届いているイベントをすべて保存し終えてから戻る。 */
@@ -245,6 +258,7 @@ class RecordingService : Service() {
             }
         }
 
+        if (classifier.isInitialized()) classifier.value.close()
         scope.cancel()
         wakeLock?.takeIf { it.isHeld }?.release()
         wakeLock = null

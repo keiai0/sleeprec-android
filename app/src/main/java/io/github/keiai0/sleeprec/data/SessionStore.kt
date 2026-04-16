@@ -50,6 +50,9 @@ class SessionStore(
         eventDao.delete(event.id)
     }
 
+    /** 自動分類の結果を反映する。ユーザーが直した種別は上書きしない。 */
+    suspend fun updateAutoType(id: Long, type: EventType, score: Float) = eventDao.updateAutoType(id, type, score)
+
     suspend fun eventCount(id: Long): Int = eventDao.count(id)
 
     suspend fun events(id: Long): List<AudioEvent> = eventDao.forSession(id)
