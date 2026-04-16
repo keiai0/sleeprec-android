@@ -11,11 +11,12 @@ class SessionStore(
     private val dao: SessionDao,
     private val loudnessDao: LoudnessDao,
     private val eventDao: AudioEventDao,
+    private val apneaDao: ApneaCandidateDao,
 ) {
 
     companion object {
         fun create(context: Context): SessionStore =
-            AppDatabase.get(context).let { SessionStore(it.sessionDao(), it.loudnessDao(), it.audioEventDao()) }
+            AppDatabase.get(context).let { SessionStore(it.sessionDao(), it.loudnessDao(), it.audioEventDao(), it.apneaCandidateDao()) }
     }
 
     suspend fun start(startedAt: Long, wavPath: String): Long =
@@ -53,6 +54,17 @@ class SessionStore(
     /** 自動分類の結果を反映する。ユーザーが直した種別は上書きしない。 */
     suspend fun updateAutoType(id: Long, type: EventType, score: Float) = eventDao.updateAutoType(id, type, score)
 
+    /** 無呼吸の候補を保存する。音声は 1 晩 MAX_APNEA_CLIPS_PER_SESSION 件まで、無音の長いものを残す。 */
+    suspend fun saveApnea(candidate: ApneaCandidate) {
+        apneaDao.insert(candidate)
+        val over = apneaDao.clipsOverLimit(candidate.sessionId, Thresholds.MAX_APNEA_CLIPS_PER_SESSION)
+        if (over.isEmpty()) return
+        over.forEach { it.clipPath?.let(::File)?.delete() }
+        apneaDao.clearClipPaths(over.map { it.id })
+    }
+
+    suspend fun apneaCandidates(id: Long): List<ApneaCandidate> = apneaDao.forSession(id)
+
     suspend fun eventCount(id: Long): Int = eventDao.count(id)
 
     suspend fun events(id: Long): List<AudioEvent> = eventDao.forSession(id)
@@ -64,6 +76,12 @@ class SessionStore(
     suspend fun expireOldAudio(now: Long) {
         val cutoff = now - Thresholds.AUDIO_RETENTION_DAYS * 24 * 60 * 60 * 1000
         deleteClips(eventDao.clipsOlderThan(cutoff))
+        apneaDao.clipsOlderThan(cutoff).let { old ->
+            if (old.isNotEmpty()) {
+                old.forEach { it.clipPath?.let(::File)?.delete() }
+                apneaDao.clearClipPaths(old.map { it.id })
+            }
+        }
         dao.finishedBefore(cutoff).forEach { File(it.wavPath).delete() }
     }
 
@@ -122,6 +140,7 @@ class SessionStore(
 
     private suspend fun discard(s: Session) {
         File(s.wavPath).delete()
+        apneaDao.clipPaths(s.id).forEach { File(it).delete() }
         eventDao.clipPaths(s.id).forEach { File(it).delete() } // 行は cascade で消えるが、ファイルは自分で消す
         dao.delete(s)
     }

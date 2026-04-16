@@ -30,6 +30,11 @@ class ClipPlayer {
     /** 指定のクリップを最初から再生する。別のクリップを再生中なら止めて切り替える。 */
     fun play(event: AudioEvent) {
         val path = event.clipPath ?: return
+        play(event.id, path, event.maxDb)
+    }
+
+    /** id は画面が「どれを再生中か」を見分けるための値(イベントと無呼吸の候補で重ならないようにする)。 */
+    fun play(id: Long, path: String, maxDb: Float) {
         stop()
         try {
             val mp = MediaPlayer().apply {
@@ -49,7 +54,7 @@ class ClipPlayer {
             }
             enhancer = try {
                 LoudnessEnhancer(mp.audioSessionId).apply {
-                    setTargetGain(ClipPlayback.gainMillibels(event.maxDb))
+                    setTargetGain(ClipPlayback.gainMillibels(maxDb))
                     enabled = true
                 }
             } catch (e: Exception) { // 端末が対応していなければ、補正なしで再生する
@@ -57,7 +62,7 @@ class ClipPlayer {
                 null
             }
             player = mp
-            currentId = event.id
+            currentId = id
             durationMs = mp.duration
             mp.start()
             isPlaying = true

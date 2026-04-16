@@ -14,6 +14,7 @@ import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
 import io.github.keiai0.sleeprec.data.AppDatabase
+import io.github.keiai0.sleeprec.data.ApneaCandidate
 import io.github.keiai0.sleeprec.data.AudioEvent
 import io.github.keiai0.sleeprec.data.EventType
 import io.github.keiai0.sleeprec.data.InterruptReason
@@ -64,6 +65,9 @@ class RecordingService : Service() {
     // 録音スレッドが検出したイベントを、DB・ファイルの書き込み側へ渡す(Go の chan に近い)
     private val events = Channel<DetectedEvent>(Channel.UNLIMITED)
     private var eventJob: Job? = null
+    // 無呼吸の判定用に、直前のイベントを覚えておく(イベントの書き込みコルーチンだけが使う)
+    private class PrevEvent(val mark: ApneaRules.Mark, val pcm: ByteArray, val endMs: Long, val maxDb: Float)
+    private var prevEvent: PrevEvent? = null
     // 音の分類器。イベントの書き込みコルーチンだけが使う(スレッドセーフではないため)。初回に読み込む
     private val classifier = lazy { YamnetClassifier(applicationContext) }
     private var sessionStartedAt = 0L
@@ -75,8 +79,7 @@ class RecordingService : Service() {
     override fun onCreate() {
         super.onCreate()
         SessionPolicy.configure(this)
-        val db = AppDatabase.get(this)
-        store = SessionStore(db.sessionDao(), db.loudnessDao(), db.audioEventDao())
+        store = SessionStore.create(this)
     }
 
     // bind しない(Activity から直接メソッドを呼ばない)ので null。状態共有は RecordingState で行う。
@@ -182,7 +185,8 @@ class RecordingService : Service() {
                     val clip = File(getExternalFilesDir(null), "clips/session_$id/clip_${startedAt}.wav")
                     WavFormat.writeFile(clip, e.pcm)
                     // 音声を残さない(上限超え)イベントも、ここで分類しておく。失敗しても保存は続ける
-                    val (type, score) = classify(e)
+                    val scores = classify(e)
+                    val (type, score) = scores?.let(EventTypeMapper::decide) ?: (EventType.UNCLASSIFIED to 0f)
                     store.saveEvent(
                         AudioEvent(
                             sessionId = id, startedAt = startedAt, durationMs = e.durationMs,
@@ -190,6 +194,8 @@ class RecordingService : Service() {
                             clipPath = clip.absolutePath,
                         )
                     )
+                    detectApnea(id, e, type, scores)
+                    prevEvent = PrevEvent(ApneaRules.Mark(type, e.loudStartMs, e.loudEndMs), e.pcm, e.offsetMs + e.durationMs, e.maxDb)
                     RecordingState.setEventCount(store.eventCount(id))
                 } catch (ex: Exception) {
                     Log.e(TAG, "saveEvent failed", ex)
@@ -198,11 +204,32 @@ class RecordingService : Service() {
         }
     }
 
-    private fun classify(e: DetectedEvent): Pair<EventType, Float> = try {
-        EventTypeMapper.decide(classifier.value.classifyPcm(e.pcm).scores)
+    private fun classify(e: DetectedEvent): FloatArray? = try {
+        classifier.value.classifyPcm(e.pcm).scores
     } catch (ex: Throwable) {
         Log.e(TAG, "classify failed", ex)
-        EventType.UNCLASSIFIED to 0f
+        null
+    }
+
+    /**
+     * 直前がいびきで、その後に 10〜90 秒の無音があり、呼吸音で再開していたら、無呼吸の候補として保存する。
+     * クリップは、[前のいびきの末尾] + [無音] + [再開の音] を 1 つにつなぐ。
+     */
+    private suspend fun detectApnea(id: Long, e: DetectedEvent, type: EventType, scores: FloatArray?) {
+        val prev = prevEvent ?: return
+        if (scores == null) return
+        val next = ApneaRules.Mark(type, e.loudStartMs, e.loudEndMs)
+        val silence = ApneaRules.silenceMs(prev.mark, next, scores) ?: return
+        val silenceStartAt = sessionStartedAt + prev.mark.loudEndMs
+        val pcm = ApneaRules.buildClip(prev.pcm, prev.endMs, e.pcm, e.offsetMs, e.leadPcm)
+        val clip = File(getExternalFilesDir(null), "clips/session_$id/apnea_${silenceStartAt}.wav")
+        WavFormat.writeFile(clip, pcm)
+        store.saveApnea(
+            ApneaCandidate(
+                sessionId = id, startedAt = silenceStartAt, silenceMs = silence,
+                maxDb = maxOf(prev.maxDb, e.maxDb), clipPath = clip.absolutePath,
+            )
+        )
     }
 
     /** 録音が止まったあと、届いているイベントをすべて保存し終えてから戻る。 */

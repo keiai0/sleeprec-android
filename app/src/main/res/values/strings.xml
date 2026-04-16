@@ -54,6 +54,21 @@
     <string name="snore_detail">%1$d 回 ・ 合計 %2$s ・ 最大 %3$.1f / 平均 %4$.1f dBFS</string>
     <string name="snore_times">発生時刻: %1$s</string>
 
+    <!-- 無呼吸の目安 -->
+    <string name="apnea_title">無呼吸の目安</string>
+    <string name="apnea_none">いびきの後の長い無音は見つかりませんでした。</string>
+    <string name="apnea_count">候補 %1$d 回 ・ 最大 %2$s ・ 合計 %3$s(無音の長さ)</string>
+    <string name="apnea_rate">1 時間あたり %1$.1f 回(%2$s)</string>
+    <string name="apnea_short_session">計測が 1 時間未満のため、1 時間あたりの回数と重症度は出しません。</string>
+    <string name="apnea_risk">無音の候補が多く見られました。気になる場合は、医師や専門機関に相談してください。</string>
+    <string name="apnea_disclaimer">これは診断ではなく、いびきの後に 10 秒以上の無音が続いたことによる目安です。寝返りや環境音でも候補になることがあります。</string>
+    <string name="level_normal">正常範囲</string>
+    <string name="level_mild">軽度の目安</string>
+    <string name="level_moderate">中等度の目安</string>
+    <string name="level_severe">重度の目安</string>
+    <string name="apnea_clips_title">無呼吸の候補(%1$d 件)</string>
+    <string name="apnea_row_detail">無音 %1$s(前後の音を含めて再生します)</string>
+
     <!-- 権限 -->
     <string name="permission_denied">録音にはマイクの許可が必要です。もう一度「録音開始」を押してください。</string>
     <string name="permission_permanently_denied">マイクの許可が拒否されています。設定画面から許可してください。</string>

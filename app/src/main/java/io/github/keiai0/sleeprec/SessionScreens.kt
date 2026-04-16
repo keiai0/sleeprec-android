@@ -7,7 +7,9 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -30,6 +32,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import io.github.keiai0.sleeprec.data.ApneaCandidate
 import io.github.keiai0.sleeprec.data.AudioEvent
 import io.github.keiai0.sleeprec.data.LoudnessSample
 import io.github.keiai0.sleeprec.data.Session
@@ -116,12 +119,14 @@ fun SessionDetailScreen(sessionId: Long, onBack: () -> Unit) {
     var session by remember { mutableStateOf<Session?>(null) }
     var samples by remember { mutableStateOf<List<LoudnessSample>>(emptyList()) }
     var events by remember { mutableStateOf<List<AudioEvent>>(emptyList()) }
+    var apneas by remember { mutableStateOf<List<ApneaCandidate>>(emptyList()) }
     var deleting by remember { mutableStateOf<AudioEvent?>(null) }
 
     suspend fun load() = withContext(Dispatchers.IO) {
         session = store.session(sessionId)
         samples = store.loudness(sessionId)
         events = store.events(sessionId)
+        apneas = store.apneaCandidates(sessionId)
     }
     LaunchedEffect(sessionId) { load() }
 
@@ -194,6 +199,25 @@ fun SessionDetailScreen(sessionId: Long, onBack: () -> Unit) {
                         style = MaterialTheme.typography.labelSmall,
                     )
                 }
+                if (SnoreSummary.of(events) != null || apneas.isNotEmpty()) {
+                    ApneaCard(ApneaSummary.of(apneas, sessionEndMs(s)))
+                }
+            }
+            if (apneas.isNotEmpty()) {
+                item {
+                    Text(
+                        stringResource(R.string.apnea_clips_title, apneas.size),
+                        style = MaterialTheme.typography.titleMedium,
+                        modifier = Modifier.padding(top = 8.dp, bottom = 4.dp),
+                    )
+                }
+                items(apneas, key = { -it.id }) { c ->
+                    ApneaRow(c, player)
+                    HorizontalDivider()
+                }
+                item { Spacer(Modifier.height(8.dp)) }
+            }
+            item {
                 Text(
                     stringResource(R.string.clips_title, events.size),
                     style = MaterialTheme.typography.titleMedium,
@@ -264,6 +288,77 @@ private fun ClipRow(
             TextButton(onClick = onDelete) { Text(stringResource(R.string.delete)) }
         }
         analysis?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
+        if (current) {
+            Slider(
+                value = player.positionMs.toFloat(),
+                onValueChange = { player.seekTo(it.toInt()) },
+                valueRange = 0f..player.durationMs.coerceAtLeast(1).toFloat(),
+            )
+            Text(
+                "${formatMs(player.positionMs.toLong())} / ${formatMs(player.durationMs.toLong())}",
+                style = MaterialTheme.typography.labelSmall,
+            )
+        }
+    }
+}
+
+/** 無呼吸の目安(FR-4.6)。診断ではないことを、常に一緒に表示する。 */
+@Composable
+private fun ApneaCard(a: ApneaSummary) {
+    Column(Modifier.fillMaxWidth().padding(top = 16.dp)) {
+        Text(stringResource(R.string.apnea_title), style = MaterialTheme.typography.titleMedium)
+        if (a.count == 0) {
+            Text(stringResource(R.string.apnea_none))
+        } else {
+            Text(stringResource(R.string.apnea_count, a.count, formatMs(a.maxSilenceMs), formatMs(a.totalSilenceMs)))
+        }
+        val level = a.level
+        val perHour = a.perHour
+        if (level != null && perHour != null) {
+            Text(stringResource(R.string.apnea_rate, perHour, stringResource(levelLabel(level))))
+        } else if (a.count > 0) {
+            Text(stringResource(R.string.apnea_short_session), style = MaterialTheme.typography.labelMedium)
+        }
+        if (a.showRiskNotice) {
+            Text(
+                stringResource(R.string.apnea_risk),
+                color = MaterialTheme.colorScheme.error,
+                style = MaterialTheme.typography.bodyMedium,
+                modifier = Modifier.padding(top = 4.dp),
+            )
+        }
+        Text(
+            stringResource(R.string.apnea_disclaimer),
+            style = MaterialTheme.typography.labelSmall,
+            modifier = Modifier.padding(top = 4.dp),
+        )
+    }
+}
+
+private fun levelLabel(level: ApneaLevel): Int = when (level) {
+    ApneaLevel.NORMAL -> R.string.level_normal
+    ApneaLevel.MILD -> R.string.level_mild
+    ApneaLevel.MODERATE -> R.string.level_moderate
+    ApneaLevel.SEVERE -> R.string.level_severe
+}
+
+/** 無呼吸の候補 1 件。前後を含むクリップを再生できる。 */
+@Composable
+private fun ApneaRow(c: ApneaCandidate, player: ClipPlayer) {
+    val playId = -c.id // イベントの id と重ならないよう負の値にする
+    val current = player.currentId == playId
+    Column(Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
+        Text(formatTime(c.startedAt), style = MaterialTheme.typography.titleSmall)
+        Text(stringResource(R.string.apnea_row_detail, formatMs(c.silenceMs)))
+        if (c.clipPath == null) {
+            Text(stringResource(R.string.audio_deleted), style = MaterialTheme.typography.labelMedium)
+        } else {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                TextButton(onClick = { if (current) player.togglePause() else player.play(playId, c.clipPath, c.maxDb) }) {
+                    Text(stringResource(if (current && player.isPlaying) R.string.pause else R.string.play))
+                }
+            }
+        }
         if (current) {
             Slider(
                 value = player.positionMs.toFloat(),

@@ -113,7 +113,7 @@ private fun RecorderScreen(stopRequested: Boolean, onStopRequestConsumed: () -> 
     val context = LocalContext.current
     val activity = context as Activity
     val scope = rememberCoroutineScope()
-    val store = remember { AppDatabase.get(context).let { SessionStore(it.sessionDao(), it.loudnessDao(), it.audioEventDao()) } }
+    val store = remember { SessionStore.create(context) }
 
     val isRecording by RecordingState.isRecording.collectAsState()
     val debuggable = context.applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE != 0

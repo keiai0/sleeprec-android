@@ -9,6 +9,11 @@ class DetectedEvent(
     val maxDb: Float,
     val avgDb: Float,
     val pcm: ByteArray,
+    // 音が出ていた区間(前後の余白を除く)の、録音開始からの位置。無呼吸の無音区間の計算に使う
+    val loudStartMs: Long,
+    val loudEndMs: Long,
+    // クリップの直前の音(最大 leadMs)。クリップの先頭のすぐ前まで続く。無音区間のクリップの材料
+    val leadPcm: ByteArray,
 )
 
 /**
@@ -26,11 +31,13 @@ class EventDetector(
     preRollMs: Long = Thresholds.PRE_ROLL_MS,
     minEventMs: Long = Thresholds.MIN_EVENT_MS,
     maxClipMs: Long = Thresholds.MAX_CLIP_MS,
+    leadMs: Long = Thresholds.APNEA_LEAD_MS,
 ) {
     private val holdBytes = WavFormat.msToBytes(holdMs)
     private val preRollBytes = WavFormat.msToBytes(preRollMs)
     private val minBytes = WavFormat.msToBytes(minEventMs)
     private val maxBytes = WavFormat.msToBytes(maxClipMs)
+    private val keepBytes = preRollBytes + WavFormat.msToBytes(leadMs) // リングに残す量
 
     private val ring = ArrayDeque<ByteArray>()
     private var ringBytes = 0
@@ -41,6 +48,9 @@ class EventDetector(
     private var clip = ByteArrayOutputStream()
     private var clipOffsetBytes = 0L
     private var preBytes = 0
+    private var leadPcm = ByteArray(0)
+    private var loudStartBytes = 0L
+    private var loudEndBytes = 0L
     private var quietBytes = 0
     private var maxDb = 0f
     private var sumDb = 0.0
@@ -57,13 +67,16 @@ class EventDetector(
             } else {
                 ring.addLast(block)
                 ringBytes += block.size
-                while (ring.size > 1 && ringBytes - ring.first().size >= preRollBytes) {
+                while (ring.size > 1 && ringBytes - ring.first().size >= keepBytes) {
                     ringBytes -= ring.removeFirst().size
                 }
             }
         } else {
             append(block, db)
-            if (db < endDb) quietBytes += block.size else quietBytes = 0
+            if (db < endDb) quietBytes += block.size else {
+                quietBytes = 0
+                loudEndBytes = totalBytes + block.size
+            }
             if (quietBytes >= holdBytes || clip.size() >= maxBytes) result = finish()
         }
         totalBytes += block.size
@@ -76,9 +89,22 @@ class EventDetector(
     private fun begin(block: ByteArray, db: Float) {
         inEvent = true
         clip = ByteArrayOutputStream()
-        preBytes = ringBytes
-        clipOffsetBytes = totalBytes - ringBytes
-        ring.forEach { clip.write(it) }
+        // リングの後ろ側(PRE_ROLL 分)をクリップの頭に、それより前を lead として分ける
+        val all = ring.toList()
+        var i = all.size
+        var pre = 0
+        while (i > 0 && pre < preRollBytes) {
+            i--
+            pre += all[i].size
+        }
+        val leadOut = ByteArrayOutputStream()
+        all.subList(0, i).forEach { leadOut.write(it) }
+        leadPcm = leadOut.toByteArray()
+        all.subList(i, all.size).forEach { clip.write(it) }
+        preBytes = pre
+        clipOffsetBytes = totalBytes - pre
+        loudStartBytes = totalBytes
+        loudEndBytes = totalBytes + block.size
         ring.clear()
         ringBytes = 0
         quietBytes = 0
@@ -105,8 +131,12 @@ class EventDetector(
             maxDb = maxDb,
             avgDb = (sumDb / blocks).toFloat(),
             pcm = pcm,
+            loudStartMs = WavFormat.bytesToMs(loudStartBytes.toInt()),
+            loudEndMs = WavFormat.bytesToMs(loudEndBytes.toInt()),
+            leadPcm = leadPcm,
         )
         clip = ByteArrayOutputStream()
+        leadPcm = ByteArray(0)
         return event
     }
 }

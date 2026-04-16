@@ -99,4 +99,29 @@ class EventDetectorTest {
         assertEquals(10, e.pcm[4 * 3200].toInt())
         assertEquals(99, e.pcm[5 * 3200].toInt())
     }
+
+    @Test fun loudRangeExcludesPaddingAndTail() {
+        // 静か 2 秒 → 音 1 秒 → 静か 2 秒: 音は 2.0〜3.0 秒
+        val e = run(detector(), quiet to 20, loud to 10, quiet to 20).single()
+        assertEquals(2000, e.loudStartMs)
+        assertEquals(3000, e.loudEndMs)
+    }
+
+    @Test fun leadIsAudioBeforeTheClip() {
+        val d = EventDetector(startDb = -40f, endDb = -45f, holdMs = 1000, preRollMs = 500, minEventMs = 300, maxClipMs = 10_000, leadMs = 2000)
+        fun blockOf(v: Int) = ByteArray(3200) { v.toByte() }
+        for (i in 1..30) d.feed(blockOf(i), 3200, quiet) // 3 秒分(1〜30)
+        repeat(4) { d.feed(blockOf(99), 3200, loud) }
+        val e = (1..20).firstNotNullOf { d.feed(blockOf(0), 3200, quiet) }
+        // クリップの頭 = 直前 5 ブロック(26〜30)。lead はその前の 20 ブロック(6〜25)
+        assertEquals(26, e.pcm[0].toInt())
+        assertEquals(20 * 3200, e.leadPcm.size)
+        assertEquals(6, e.leadPcm[0].toInt())
+        assertEquals(25, e.leadPcm[e.leadPcm.size - 1].toInt())
+    }
+
+    @Test fun leadIsEmptyWhenEventStartsRightAway() {
+        val e = run(detector(), loud to 10, quiet to 20).single()
+        assertEquals(0, e.leadPcm.size)
+    }
 }
