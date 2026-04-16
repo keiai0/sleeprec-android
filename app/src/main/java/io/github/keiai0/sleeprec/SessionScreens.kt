@@ -16,6 +16,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -34,6 +35,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import io.github.keiai0.sleeprec.data.ApneaCandidate
 import io.github.keiai0.sleeprec.data.AudioEvent
+import io.github.keiai0.sleeprec.data.EventType
 import io.github.keiai0.sleeprec.data.LoudnessSample
 import io.github.keiai0.sleeprec.data.Session
 import io.github.keiai0.sleeprec.data.SessionStatus
@@ -121,6 +123,7 @@ fun SessionDetailScreen(sessionId: Long, onBack: () -> Unit) {
     var events by remember { mutableStateOf<List<AudioEvent>>(emptyList()) }
     var apneas by remember { mutableStateOf<List<ApneaCandidate>>(emptyList()) }
     var deleting by remember { mutableStateOf<AudioEvent?>(null) }
+    var retyping by remember { mutableStateOf<AudioEvent?>(null) }
 
     suspend fun load() = withContext(Dispatchers.IO) {
         session = store.session(sessionId)
@@ -226,10 +229,24 @@ fun SessionDetailScreen(sessionId: Long, onBack: () -> Unit) {
                 if (events.isEmpty()) Text(stringResource(R.string.clips_empty))
             }
             items(events, key = { it.id }) { e ->
-                ClipRow(e, s.startedAt, player, onDelete = { deleting = e }, analyze = analyze)
+                ClipRow(e, s.startedAt, player, onDelete = { deleting = e }, onRetype = { retyping = e }, analyze = analyze)
                 HorizontalDivider()
             }
         }
+    }
+
+    retyping?.let { e ->
+        TypeDialog(
+            current = e.type,
+            onSelect = { type ->
+                retyping = null
+                scope.launch {
+                    withContext(Dispatchers.IO) { store.setUserType(e.id, type) }
+                    load()
+                }
+            },
+            onDismiss = { retyping = null },
+        )
     }
 
     deleting?.let { e ->
@@ -254,7 +271,7 @@ fun SessionDetailScreen(sessionId: Long, onBack: () -> Unit) {
 
 @Composable
 private fun ClipRow(
-    e: AudioEvent, sessionStart: Long, player: ClipPlayer, onDelete: () -> Unit,
+    e: AudioEvent, sessionStart: Long, player: ClipPlayer, onDelete: () -> Unit, onRetype: () -> Unit,
     analyze: (suspend (AudioEvent) -> String)?,
 ) {
     val scope = rememberCoroutineScope()
@@ -263,7 +280,8 @@ private fun ClipRow(
     val current = player.currentId == e.id
     Column(Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
         Text(
-            "${formatTime(e.startedAt)}  ${stringResource(e.type.labelRes)}",
+            "${formatTime(e.startedAt)}  ${stringResource(e.type.labelRes)}" +
+                if (e.typeCorrected) stringResource(R.string.type_corrected_mark) else "",
             style = MaterialTheme.typography.titleSmall,
         )
         Text(
@@ -285,6 +303,7 @@ private fun ClipRow(
                     scope.launch { analysis = analyze(e) }
                 }) { Text(stringResource(R.string.debug_analyze)) }
             }
+            TextButton(onClick = onRetype) { Text(stringResource(R.string.change_type)) }
             TextButton(onClick = onDelete) { Text(stringResource(R.string.delete)) }
         }
         analysis?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
@@ -371,4 +390,29 @@ private fun ApneaRow(c: ApneaCandidate, player: ClipPlayer) {
             )
         }
     }
+}
+
+/** FR-4.8: 種別の選び直し。現在の種別に印を付けて、選ぶとすぐ保存する。 */
+@Composable
+private fun TypeDialog(current: EventType, onSelect: (EventType) -> Unit, onDismiss: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.change_type_title)) },
+        text = {
+            Column {
+                // 未分類は選ぶ対象ではない(自動分類が終わる前の状態)
+                EventType.entries.filter { it != EventType.UNCLASSIFIED }.forEach { type ->
+                    Row(
+                        Modifier.fillMaxWidth().clickable { onSelect(type) }.padding(vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        RadioButton(selected = type == current, onClick = { onSelect(type) })
+                        Text(stringResource(type.labelRes))
+                    }
+                }
+            }
+        },
+        confirmButton = {},
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) } },
+    )
 }

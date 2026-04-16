@@ -28,6 +28,10 @@ interface AudioEventDao {
     @Query("UPDATE audio_events SET type = :type, typeScore = :score WHERE id = :id AND typeCorrected = 0")
     suspend fun updateAutoType(id: Long, type: EventType, score: Float)
 
+    // ユーザーが種別を直す(FR-4.8)。以後、自動分類では上書きしない
+    @Query("UPDATE audio_events SET type = :type, typeCorrected = 1 WHERE id = :id")
+    suspend fun updateUserType(id: Long, type: EventType)
+
     @Query("DELETE FROM audio_events WHERE id = :id")
     suspend fun delete(id: Long)
 

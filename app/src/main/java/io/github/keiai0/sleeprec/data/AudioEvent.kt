@@ -37,8 +37,8 @@ data class AudioEvent(
     val clipPath: String? = null,
 )
 
-// SPEC の種別。歯ぎしり・環境音はモデルが対応しないので OTHER にまとめる(PLAN Phase 4)。
-// Room は名前の文字列で保存するので、並べ替えても既存の行は壊れない。
+// SPEC の種別。歯ぎしり・環境音はモデルが対応しないので、自動分類では OTHER になり、ユーザーが手動で選ぶ。
+// Room は名前の文字列で保存するので、並べ替え・追加をしても既存の行は壊れない。
 enum class EventType(@StringRes val labelRes: Int) {
     UNCLASSIFIED(R.string.type_unclassified),
     SNORING(R.string.type_snoring),
@@ -47,5 +47,7 @@ enum class EventType(@StringRes val labelRes: Int) {
     FART(R.string.type_fart),
     FOOTSTEPS(R.string.type_footsteps),
     ANIMAL(R.string.type_animal),
+    GRINDING(R.string.type_grinding),
+    AMBIENT(R.string.type_ambient),
     OTHER(R.string.type_other),
 }

@@ -65,6 +65,9 @@ class SessionStore(
 
     suspend fun apneaCandidates(id: Long): List<ApneaCandidate> = apneaDao.forSession(id)
 
+    /** ユーザーによる再分類(FR-4.8)。 */
+    suspend fun setUserType(id: Long, type: EventType) = eventDao.updateUserType(id, type)
+
     suspend fun eventCount(id: Long): Int = eventDao.count(id)
 
     suspend fun events(id: Long): List<AudioEvent> = eventDao.forSession(id)
