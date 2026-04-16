@@ -3,6 +3,7 @@ package io.github.keiai0.sleeprec.data
 import android.content.Context
 import io.github.keiai0.sleeprec.SecondLoudness
 import io.github.keiai0.sleeprec.SessionPolicy
+import io.github.keiai0.sleeprec.SyntheticNight
 import io.github.keiai0.sleeprec.Thresholds
 import java.io.File
 
@@ -40,6 +41,24 @@ class SessionStore(
         val over = eventDao.clipsOverLimit(event.sessionId, Thresholds.MAX_CLIPS_PER_SESSION)
         deleteClips(over)
     }
+
+    suspend fun recentCompleted(before: Long, limit: Int): List<Session> = dao.recentCompleted(before, limit)
+
+    /** デバッグ用: 合成した 1 晩を、通常の記録として保存する(音声ファイルはない)。 */
+    suspend fun insertSyntheticNight(night: SyntheticNight): Long {
+        val id = dao.insert(
+            Session(
+                startedAt = night.startedAt, endedAt = night.endedAt, status = SessionStatus.COMPLETED,
+                lastAliveAt = night.endedAt, wavPath = "debug://synthetic",
+            )
+        )
+        loudnessDao.insertAll(night.samples.map { LoudnessSample(id, it.second, it.avgDb, it.maxDb) })
+        night.events.forEach { eventDao.insert(it.copy(sessionId = id)) }
+        night.apneas.forEach { apneaDao.insert(it.copy(sessionId = id)) }
+        return id
+    }
+
+    suspend fun deleteSyntheticNights() = dao.deleteSynthetic()
 
     suspend fun finishedSessions(): List<Session> = dao.finished()
 

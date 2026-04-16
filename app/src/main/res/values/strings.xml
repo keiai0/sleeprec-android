@@ -59,6 +59,45 @@
     <string name="snore_detail">%1$d 回 ・ 合計 %2$s ・ 最大 %3$.1f / 平均 %4$.1f dBFS</string>
     <string name="snore_times">発生時刻: %1$s</string>
 
+    <!-- 睡眠・スコア -->
+    <string name="sleep_title">睡眠</string>
+    <string name="score_out_of">/ 100</string>
+    <string name="no_score">スコアなし</string>
+    <string name="no_score_short">Short Sleep(30 分未満)の記録は、スコアの対象外です。</string>
+    <string name="no_score_interrupted">中断された記録は、データが不正確な可能性があるため、スコアの対象外です。</string>
+    <string name="no_score_too_short">総睡眠時間が 4 時間未満のため、スコアを出しません。</string>
+    <string name="no_score_no_sleep">入眠(10 分以上の静かな時間)が見つからなかったため、スコアを出しません。</string>
+    <string name="score_explain_button">スコアの算出方法</string>
+    <string name="band_excellent">Excellent</string>
+    <string name="band_pretty_good">Pretty Good</string>
+    <string name="band_fair">Fair</string>
+    <string name="band_poor">Poor</string>
+    <string name="part_duration">Duration(睡眠時間)</string>
+    <string name="part_restoration">Restoration(睡眠の連続性)</string>
+    <string name="part_consistency">Consistency(規則性)</string>
+    <string name="part_feeling">Feeling(気分)</string>
+    <string name="part_row">%1$s: %2$.1f / %3$d 点</string>
+    <string name="part_skipped">%1$s: %2$s</string>
+    <string name="skip_consistency">3 夜未満のため、除いて計算しています</string>
+    <string name="skip_feeling">起床時の気分が未入力のため、除いて計算しています</string>
+    <string name="metric_bed_wake">入眠 %1$s → 起床 %2$s</string>
+    <string name="metric_tst">総睡眠時間 %1$s(ベッドにいた時間 %2$s)</string>
+    <string name="metric_latency_efficiency">入眠潜時 %1$d 分 ・ 睡眠効率 %2$.0f%%</string>
+    <string name="metric_waso">入眠後の覚醒 %1$d 分 ・ 5 分以上の中途覚醒 %2$d 回</string>
+    <string name="metric_debt">睡眠負債 %1$s(目標 %2$s)</string>
+    <string name="metric_debt_none">睡眠負債なし(目標 %1$s)</string>
+    <string name="metric_stages">Light %1$d 分(%2$.0f%%) ・ Deep %3$d 分(%4$.0f%%) ・ REM %5$d 分(%6$.0f%%)</string>
+    <string name="stage_awake">Awake</string>
+    <string name="stage_rem">REM</string>
+    <string name="stage_light">Light</string>
+    <string name="stage_deep">Deep</string>
+    <string name="stage_caveat">マイクの音だけからの大まかな推定です。静かに起きていても「睡眠」になり、Deep / REM は 90 分周期という一般的な傾向に沿った目安で、実際の睡眠ステージとは異なります。</string>
+    <string name="explain_title">スコアの算出方法</string>
+    <string name="explain_reason">この記録: %1$s</string>
+    <string name="explain_body">合計 100 点です。\n\n・Duration(40 点): 総睡眠時間。4 時間以下は 0 点、目標(7.5 時間)まで直線的に増え、目標〜9 時間は満点。9 時間を超えると少し減点します。\n\n・Restoration(30 点): 睡眠の連続性。睡眠効率(85%以上で満点、74%以下で 0)、入眠後の覚醒時間(20 分以下で満点、51 分以上で 0)、5 分以上の中途覚醒の回数(0〜1 回で満点、4 回以上で 0)、入眠潜時(30 分以下で満点、46 分以上で 0)の重み付き平均です。基準は米国睡眠財団(NSF)の合意によります。\n\n・Consistency(20 点): 直近 7 夜の就寝・起床時刻のばらつき。ばらつきが 30 分以下で満点、90 分以上で 0。3 夜未満は除いて計算します。\n\n・Feeling(10 点): 起床時の気分(1〜5)。未入力の場合は除いて計算します。\n\nデータが足りない要素は除き、残りを 100 点に換算します。スコアは、Short Sleep、中断された記録、総睡眠時間が 4 時間未満の記録では出しません。\n\n配点と基準は暫定値で、今後、実際のデータを見て調整します。医療用の評価ではありません。</string>
+    <string name="debug_create_nights">サンプルの夜を作る(7 夜・デバッグ)</string>
+    <string name="debug_delete_nights">サンプルの夜を削除(デバッグ)</string>
+
     <!-- 無呼吸の目安 -->
     <string name="apnea_title">無呼吸の目安</string>
     <string name="apnea_none">いびきの後の長い無音は見つかりませんでした。</string>

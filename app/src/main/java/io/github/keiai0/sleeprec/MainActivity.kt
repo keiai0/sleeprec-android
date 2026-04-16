@@ -228,6 +228,29 @@ private fun RecorderScreen(stopRequested: Boolean, onStopRequestConsumed: () -> 
             Button(onClick = ::onStartClicked) { Text(stringResource(R.string.button_start)) }
             // 録音中は再生しない(再生音をマイクが拾うのと、マイクの取り合いを避けるため)
             TextButton(onClick = onOpenHistory) { Text(stringResource(R.string.button_history)) }
+            if (debuggable) {
+                // 数時間の実データがなくても、睡眠の推定・スコア・画面を確認するための合成データ(デバッグビルドのみ)
+                TextButton(onClick = {
+                    scope.launch(Dispatchers.IO) {
+                        for (i in 1..7) {
+                            // 昨日から 7 日前まで。就寝は 23:00 前後で、日ごとに数十分ずつずれる
+                            val cal = java.util.Calendar.getInstance().apply {
+                                add(java.util.Calendar.DAY_OF_YEAR, -i)
+                                set(java.util.Calendar.HOUR_OF_DAY, 23)
+                                set(java.util.Calendar.MINUTE, (i * 17) % 50)
+                                set(java.util.Calendar.SECOND, 0)
+                                set(java.util.Calendar.MILLISECOND, 0)
+                            }
+                            store.insertSyntheticNight(
+                                SyntheticNightGenerator.generate(cal.timeInMillis, durationMin = 420 + i * 10, seed = i)
+                            )
+                        }
+                    }
+                }) { Text(stringResource(R.string.debug_create_nights)) }
+                TextButton(onClick = { scope.launch(Dispatchers.IO) { store.deleteSyntheticNights() } }) {
+                    Text(stringResource(R.string.debug_delete_nights))
+                }
+            }
         }
 
         when (permissionUi) {

@@ -22,6 +22,14 @@ interface SessionDao {
     @Query("SELECT * FROM sessions WHERE id = :id")
     suspend fun get(id: Long): Session?
 
+    // 規則性(Consistency)の計算用。この夜より前の、通常の(30 分以上の)記録を新しい順に
+    @Query("SELECT * FROM sessions WHERE status = 'COMPLETED' AND startedAt < :before ORDER BY startedAt DESC LIMIT :limit")
+    suspend fun recentCompleted(before: Long, limit: Int): List<Session>
+
+    // デバッグ用の合成データ(wavPath が debug:// で始まる)だけを削除する。音量・イベントは cascade で消える
+    @Query("DELETE FROM sessions WHERE wavPath LIKE 'debug://%'")
+    suspend fun deleteSynthetic()
+
     // 一覧用。計測中を除いて、新しい順
     @Query("SELECT * FROM sessions WHERE status != 'RECORDING' ORDER BY startedAt DESC")
     suspend fun finished(): List<Session>

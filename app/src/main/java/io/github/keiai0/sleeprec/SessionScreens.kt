@@ -122,6 +122,7 @@ fun SessionDetailScreen(sessionId: Long, onBack: () -> Unit) {
     var samples by remember { mutableStateOf<List<LoudnessSample>>(emptyList()) }
     var events by remember { mutableStateOf<List<AudioEvent>>(emptyList()) }
     var apneas by remember { mutableStateOf<List<ApneaCandidate>>(emptyList()) }
+    var previousNights by remember { mutableStateOf<List<Session>>(emptyList()) }
     var deleting by remember { mutableStateOf<AudioEvent?>(null) }
     var retyping by remember { mutableStateOf<AudioEvent?>(null) }
 
@@ -130,6 +131,7 @@ fun SessionDetailScreen(sessionId: Long, onBack: () -> Unit) {
         samples = store.loudness(sessionId)
         events = store.events(sessionId)
         apneas = store.apneaCandidates(sessionId)
+        previousNights = session?.let { store.recentCompleted(it.startedAt, Thresholds.CONSISTENCY_NIGHTS - 1) } ?: emptyList()
     }
     LaunchedEffect(sessionId) { load() }
 
@@ -176,6 +178,14 @@ fun SessionDetailScreen(sessionId: Long, onBack: () -> Unit) {
                     stringResource(R.string.detail_summary, formatMs(sessionEndMs(s)), stringResource(statusLabel(s.status))),
                     Modifier.padding(bottom = 12.dp),
                 )
+                // 睡眠の推定・スコア。音イベントから計算するので、イベントの種別を直すと結果も変わる
+                val analysis = remember(s, events) { SleepAnalyzer.analyze(s.startedAt, s.endedAt ?: s.lastAliveAt, events) }
+                val score = remember(analysis, previousNights) {
+                    val nights = (previousNights + s).filter { it.status == SessionStatus.COMPLETED }
+                        .map { NightTimes(it.startedAt, it.endedAt ?: it.lastAliveAt) }
+                    SleepScore.compute(s.status, analysis.metrics, nights, mood = null) // 気分の入力は Phase 6
+                }
+                SleepSection(analysis, score)
                 LoudnessGraph(
                     samples = samples,
                     events = events,
