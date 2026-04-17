@@ -11,7 +11,8 @@ import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
 import androidx.activity.ComponentActivity
-import androidx.activity.compose.BackHandler
+import androidx.activity.SystemBarStyle
+import androidx.activity.enableEdgeToEdge
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
@@ -63,31 +64,19 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         SessionPolicy.configure(this)
         stopRequested = intent?.getBooleanExtra(EXTRA_REQUEST_STOP, false) == true
+        enableEdgeToEdge(
+            statusBarStyle = SystemBarStyle.dark(android.graphics.Color.TRANSPARENT),
+            navigationBarStyle = SystemBarStyle.dark(android.graphics.Color.TRANSPARENT),
+        )
         setContent {
-            MaterialTheme {
-                // 画面遷移は、画面が少ない間は自前の状態で行う(下部タブを作る Phase 6 で Navigation に移す)
-                var screen by remember { mutableStateOf<Screen>(Screen.Recorder) }
-                BackHandler(enabled = screen != Screen.Recorder) {
-                    screen = when (val s = screen) {
-                        is Screen.Detail -> Screen.List
-                        else -> Screen.Recorder
-                    }
-                }
-                when (val s = screen) {
-                    Screen.Recorder -> RecorderScreen(
-                        stopRequested = stopRequested,
-                        onStopRequestConsumed = {
-                            stopRequested = false
-                            intent?.removeExtra(EXTRA_REQUEST_STOP) // 画面の作り直しで、ダイアログが再表示されないように
-                        },
-                        onOpenHistory = { screen = Screen.List },
-                    )
-                    Screen.List -> SessionListScreen(
-                        onOpen = { screen = Screen.Detail(it) },
-                        onBack = { screen = Screen.Recorder },
-                    )
-                    is Screen.Detail -> SessionDetailScreen(s.id, onBack = { screen = Screen.List })
-                }
+            SleepRecTheme {
+                SleepRecApp(
+                    stopRequested = stopRequested,
+                    onStopRequestConsumed = {
+                        stopRequested = false
+                        intent?.removeExtra(EXTRA_REQUEST_STOP) // 画面の作り直しで、ダイアログが再表示されないように
+                    },
+                )
             }
         }
     }
@@ -100,16 +89,10 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-private sealed interface Screen {
-    data object Recorder : Screen
-    data object List : Screen
-    data class Detail(val id: Long) : Screen
-}
-
 private enum class PermissionUi { None, Denied, PermanentlyDenied }
 
 @Composable
-private fun RecorderScreen(stopRequested: Boolean, onStopRequestConsumed: () -> Unit, onOpenHistory: () -> Unit) {
+internal fun RecorderScreen(stopRequested: Boolean, onStopRequestConsumed: () -> Unit) {
     val context = LocalContext.current
     val activity = context as Activity
     val scope = rememberCoroutineScope()
@@ -226,31 +209,6 @@ private fun RecorderScreen(stopRequested: Boolean, onStopRequestConsumed: () -> 
             Button(onClick = ::requestStop) { Text(stringResource(R.string.button_stop)) }
         } else {
             Button(onClick = ::onStartClicked) { Text(stringResource(R.string.button_start)) }
-            // 録音中は再生しない(再生音をマイクが拾うのと、マイクの取り合いを避けるため)
-            TextButton(onClick = onOpenHistory) { Text(stringResource(R.string.button_history)) }
-            if (debuggable) {
-                // 数時間の実データがなくても、睡眠の推定・スコア・画面を確認するための合成データ(デバッグビルドのみ)
-                TextButton(onClick = {
-                    scope.launch(Dispatchers.IO) {
-                        for (i in 1..7) {
-                            // 昨日から 7 日前まで。就寝は 23:00 前後で、日ごとに数十分ずつずれる
-                            val cal = java.util.Calendar.getInstance().apply {
-                                add(java.util.Calendar.DAY_OF_YEAR, -i)
-                                set(java.util.Calendar.HOUR_OF_DAY, 23)
-                                set(java.util.Calendar.MINUTE, (i * 17) % 50)
-                                set(java.util.Calendar.SECOND, 0)
-                                set(java.util.Calendar.MILLISECOND, 0)
-                            }
-                            store.insertSyntheticNight(
-                                SyntheticNightGenerator.generate(cal.timeInMillis, durationMin = 420 + i * 10, seed = i)
-                            )
-                        }
-                    }
-                }) { Text(stringResource(R.string.debug_create_nights)) }
-                TextButton(onClick = { scope.launch(Dispatchers.IO) { store.deleteSyntheticNights() } }) {
-                    Text(stringResource(R.string.debug_delete_nights))
-                }
-            }
         }
 
         when (permissionUi) {

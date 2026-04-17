@@ -33,9 +33,11 @@ dependencies {
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.compose.ui)
     implementation(libs.androidx.compose.material3)
+    implementation(libs.androidx.compose.material.icons.core)
     implementation(libs.androidx.room.runtime)
     implementation(libs.androidx.room.ktx)
     implementation(libs.androidx.litert)
+    implementation(libs.androidx.navigation.compose)
     ksp(libs.androidx.room.compiler)
 
     testImplementation(libs.junit)

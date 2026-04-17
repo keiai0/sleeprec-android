@@ -72,7 +72,7 @@ private fun formatTime(ms: Long): String = DateFormat.getTimeInstance(DateFormat
 
 /** セッション一覧(Journal の原型)。新しい順。開始日時、長さ、状態、イベント数を出す。 */
 @Composable
-fun SessionListScreen(onOpen: (Long) -> Unit, onBack: () -> Unit) {
+fun SessionListScreen(onOpen: (Long) -> Unit) {
     val context = LocalContext.current
     val store = remember { SessionStore.create(context) }
     var rows by remember { mutableStateOf<List<Pair<Session, Int>>?>(null) }
@@ -82,7 +82,6 @@ fun SessionListScreen(onOpen: (Long) -> Unit, onBack: () -> Unit) {
     }
 
     Column(Modifier.fillMaxSize().padding(16.dp)) {
-        TextButton(onClick = onBack) { Text(stringResource(R.string.back)) }
         Text(stringResource(R.string.list_title), style = MaterialTheme.typography.headlineSmall)
         val list = rows
         when {
