@@ -17,8 +17,11 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -148,8 +151,25 @@ internal fun RecorderScreen(stopRequested: Boolean, onStopRequestConsumed: () ->
         }
     }
 
+    // 開始前に入力した睡眠前のメモ・タグ(FR-2.10)。開始したら、次の計測のために空に戻す
+    var tags by remember { mutableStateOf<List<String>>(emptyList()) }
+    var memo by remember { mutableStateOf("") }
+    var recentTags by remember { mutableStateOf<List<String>>(emptyList()) }
+    LaunchedEffect(isRecording) {
+        if (isRecording) {
+            tags = emptyList()
+            memo = ""
+        } else {
+            recentTags = withContext(Dispatchers.IO) { store.recentTags(8) }
+        }
+    }
+    val deviceStatus = rememberDeviceStatus()
+
     fun startService() {
-        val intent = Intent(context, RecordingService::class.java).setAction(RecordingService.ACTION_START)
+        val intent = Intent(context, RecordingService::class.java)
+            .setAction(RecordingService.ACTION_START)
+            .putExtra(RecordingService.EXTRA_TAGS, tags.toTypedArray())
+            .putExtra(RecordingService.EXTRA_MEMO, memo)
         // フォアグラウンドサービスは startForegroundService() で起動する。
         // 起動後 5 秒以内にサービス側が startForeground() を呼ぶ約束。
         ContextCompat.startForegroundService(context, intent)
@@ -189,38 +209,47 @@ internal fun RecorderScreen(stopRequested: Boolean, onStopRequestConsumed: () ->
         }
     }
 
-    Column(
-        modifier = Modifier.fillMaxSize().padding(24.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterVertically),
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        Text(
-            text = stringResource(if (isRecording) R.string.state_recording else R.string.state_stopped),
-            style = MaterialTheme.typography.headlineMedium,
-        )
-
-        startedAt?.let { start ->
-            Text(text = formatClock(nowMs - start), style = MaterialTheme.typography.displayMedium)
-        }
-
-        if (isRecording && debuggable) DebugPanel()
-
-        if (isRecording) {
+    if (isRecording) {
+        // 計測中: 最低限の情報だけ
+        Column(
+            modifier = Modifier.fillMaxSize().padding(24.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterVertically),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Text(stringResource(R.string.state_recording), style = MaterialTheme.typography.headlineMedium)
+            startedAt?.let { start ->
+                Text(text = formatClock(nowMs - start), style = MaterialTheme.typography.displayMedium)
+            }
+            if (debuggable) DebugPanel()
             Button(onClick = ::requestStop) { Text(stringResource(R.string.button_stop)) }
-        } else {
-            Button(onClick = ::onStartClicked) { Text(stringResource(R.string.button_start)) }
         }
-
-        when (permissionUi) {
-            PermissionUi.None -> {}
-            PermissionUi.Denied -> Text(stringResource(R.string.permission_denied))
-            PermissionUi.PermanentlyDenied -> {
-                Text(stringResource(R.string.permission_permanently_denied))
-                Button(onClick = {
-                    context.startActivity(
-                        Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.fromParts("package", context.packageName, null))
-                    )
-                }) { Text(stringResource(R.string.open_settings)) }
+    } else {
+        // 停止中: 確認事項とタグをスクロールで見られるようにし、開始ボタンは常に下に出しておく
+        Column(Modifier.fillMaxSize()) {
+            Column(
+                Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 24.dp, vertical = 16.dp),
+                verticalArrangement = Arrangement.spacedBy(20.dp),
+            ) {
+                HomeHeader()
+                PreflightChecklist(deviceStatus)
+                TagEditor(tags, { tags = it }, memo, { memo = it }, recentTags)
+            }
+            Column(Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                when (permissionUi) {
+                    PermissionUi.None -> {}
+                    PermissionUi.Denied -> Text(stringResource(R.string.permission_denied), modifier = Modifier.padding(bottom = 8.dp))
+                    PermissionUi.PermanentlyDenied -> {
+                        Text(stringResource(R.string.permission_permanently_denied))
+                        TextButton(onClick = {
+                            context.startActivity(
+                                Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.fromParts("package", context.packageName, null))
+                            )
+                        }) { Text(stringResource(R.string.open_settings)) }
+                    }
+                }
+                Button(onClick = ::onStartClicked, modifier = Modifier.fillMaxWidth()) {
+                    Text(stringResource(R.string.button_start))
+                }
             }
         }
     }
@@ -239,6 +268,28 @@ internal fun RecorderScreen(stopRequested: Boolean, onStopRequestConsumed: () ->
             interrupted = interrupted - session
             scope.launch(Dispatchers.IO) { store.acknowledge(session.id) }
         }
+    }
+}
+
+/** ホームの見出し: 今の時刻と、目標睡眠時間で寝た場合の起床時刻の目安。 */
+@Composable
+private fun HomeHeader() {
+    var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
+    LaunchedEffect(Unit) {
+        while (true) {
+            now = System.currentTimeMillis()
+            delay(15_000L)
+        }
+    }
+    val fmt = remember { DateFormat.getTimeInstance(DateFormat.SHORT) }
+    val goalMin = (Thresholds.GOAL_SLEEP_MS / 60_000).toInt()
+    Column(Modifier.fillMaxWidth()) {
+        Text(stringResource(R.string.state_stopped), style = MaterialTheme.typography.titleMedium)
+        Text(fmt.format(Date(now)), style = MaterialTheme.typography.displayMedium)
+        Text(
+            stringResource(R.string.home_wake_hint, goalMin / 60, goalMin % 60, fmt.format(Date(now + Thresholds.GOAL_SLEEP_MS))),
+            style = MaterialTheme.typography.bodyMedium,
+        )
     }
 }
 

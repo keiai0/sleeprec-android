@@ -122,6 +122,7 @@ fun SessionDetailScreen(sessionId: Long, onBack: () -> Unit) {
     var events by remember { mutableStateOf<List<AudioEvent>>(emptyList()) }
     var apneas by remember { mutableStateOf<List<ApneaCandidate>>(emptyList()) }
     var previousNights by remember { mutableStateOf<List<Session>>(emptyList()) }
+    var tags by remember { mutableStateOf<List<String>>(emptyList()) }
     var deleting by remember { mutableStateOf<AudioEvent?>(null) }
     var retyping by remember { mutableStateOf<AudioEvent?>(null) }
 
@@ -130,6 +131,7 @@ fun SessionDetailScreen(sessionId: Long, onBack: () -> Unit) {
         samples = store.loudness(sessionId)
         events = store.events(sessionId)
         apneas = store.apneaCandidates(sessionId)
+        tags = store.tags(sessionId)
         previousNights = session?.let { store.recentCompleted(it.startedAt, Thresholds.CONSISTENCY_NIGHTS - 1) } ?: emptyList()
     }
     LaunchedEffect(sessionId) { load() }
@@ -177,6 +179,8 @@ fun SessionDetailScreen(sessionId: Long, onBack: () -> Unit) {
                     stringResource(R.string.detail_summary, formatMs(sessionEndMs(s)), stringResource(statusLabel(s.status))),
                     Modifier.padding(bottom = 12.dp),
                 )
+                if (tags.isNotEmpty()) Text(stringResource(R.string.detail_tags, tags.joinToString("、")))
+                s.memo?.let { Text(stringResource(R.string.detail_memo, it), modifier = Modifier.padding(bottom = 4.dp)) }
                 // 睡眠の推定・スコア。音イベントから計算するので、イベントの種別を直すと結果も変わる
                 val analysis = remember(s, events) { SleepAnalyzer.analyze(s.startedAt, s.endedAt ?: s.lastAliveAt, events) }
                 val score = remember(analysis, previousNights) {

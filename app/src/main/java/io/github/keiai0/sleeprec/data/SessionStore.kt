@@ -13,11 +13,12 @@ class SessionStore(
     private val loudnessDao: LoudnessDao,
     private val eventDao: AudioEventDao,
     private val apneaDao: ApneaCandidateDao,
+    private val tagDao: SessionTagDao,
 ) {
 
     companion object {
         fun create(context: Context): SessionStore =
-            AppDatabase.get(context).let { SessionStore(it.sessionDao(), it.loudnessDao(), it.audioEventDao(), it.apneaCandidateDao()) }
+            AppDatabase.get(context).let { SessionStore(it.sessionDao(), it.loudnessDao(), it.audioEventDao(), it.apneaCandidateDao(), it.sessionTagDao()) }
     }
 
     suspend fun start(startedAt: Long, wavPath: String): Long =
@@ -112,6 +113,16 @@ class SessionStore(
         events.forEach { it.clipPath?.let(::File)?.delete() }
         eventDao.clearClipPaths(events.map { it.id })
     }
+
+    /** 睡眠前のメモとタグ(FR-2.10)を保存する。タグは、検証済み(20 文字以内・重複なし)のものを渡す。 */
+    suspend fun saveMemoAndTags(id: Long, memo: String?, tags: List<String>) {
+        dao.get(id)?.let { dao.update(it.copy(memo = memo?.takeIf { m -> m.isNotBlank() })) }
+        tagDao.insertAll(tags.map { SessionTag(id, it) })
+    }
+
+    suspend fun tags(id: Long): List<String> = tagDao.forSession(id)
+
+    suspend fun recentTags(limit: Int): List<String> = tagDao.recent(limit)
 
     suspend fun heartbeat(id: Long, now: Long) = dao.updateLastAlive(id, now)
 

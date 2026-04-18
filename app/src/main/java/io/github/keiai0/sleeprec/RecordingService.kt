@@ -45,6 +45,8 @@ class RecordingService : Service() {
         const val ACTION_START = "io.github.keiai0.sleeprec.START"
         const val ACTION_FINISH = "io.github.keiai0.sleeprec.FINISH"
         const val EXTRA_SAVE = "save"
+        const val EXTRA_TAGS = "tags"
+        const val EXTRA_MEMO = "memo"
         private const val CHANNEL_ID = "recording"
         private const val NOTIFICATION_ID = 1
         private const val TAG = "RecordingService"
@@ -87,7 +89,7 @@ class RecordingService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
-            ACTION_START -> startRecording()
+            ACTION_START -> startRecording(intent)
             ACTION_FINISH -> finishRecording(save = intent.getBooleanExtra(EXTRA_SAVE, true))
         }
         // kill されても自動再起動しない。Android 14 ではバックグラウンドからの
@@ -95,7 +97,7 @@ class RecordingService : Service() {
         return START_NOT_STICKY
     }
 
-    private fun startRecording() {
+    private fun startRecording(intent: Intent) {
         if (recorder != null) return // 二重開始防止
 
         val startedAt = System.currentTimeMillis()
@@ -148,6 +150,16 @@ class RecordingService : Service() {
         // 一瞬で終わるので、IO スレッドで実行してここで結果を待つ。
         val id = runBlocking(Dispatchers.IO) { store.start(startedAt, file.absolutePath) }
         sessionId = id
+        // 睡眠前のメモとタグ(FR-2.10)。画面で検証済みだが、念のためここでも検証して重複・超過を除く
+        val tags = mutableListOf<String>()
+        intent.getStringArrayExtra(EXTRA_TAGS)?.forEach { t ->
+            val clean = TagRules.clean(t)
+            if (TagRules.validate(clean, tags) == null) tags += clean
+        }
+        val memo = intent.getStringExtra(EXTRA_MEMO)
+        if (tags.isNotEmpty() || !memo.isNullOrBlank()) {
+            runBlocking(Dispatchers.IO) { store.saveMemoAndTags(id, memo, tags) }
+        }
         startHeartbeat(id)
         startEventWriter(id)
 

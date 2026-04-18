@@ -7,12 +7,13 @@ import androidx.room.RoomDatabase
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
-@Database(entities = [Session::class, LoudnessSample::class, AudioEvent::class, ApneaCandidate::class], version = 5, exportSchema = false)
+@Database(entities = [Session::class, LoudnessSample::class, AudioEvent::class, ApneaCandidate::class, SessionTag::class], version = 6, exportSchema = false)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun sessionDao(): SessionDao
     abstract fun loudnessDao(): LoudnessDao
     abstract fun audioEventDao(): AudioEventDao
     abstract fun apneaCandidateDao(): ApneaCandidateDao
+    abstract fun sessionTagDao(): SessionTagDao
 
     companion object {
         // v1 → v2: 1秒ごとの音量テーブルを追加(既存の sessions はそのまま残す)
@@ -64,6 +65,19 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        // v5 → v6: 睡眠前のメモ(sessions.memo)と、タグのテーブルを追加
+        private val MIGRATION_5_6 = object : Migration(5, 6) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE `sessions` ADD COLUMN `memo` TEXT")
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `session_tags` (" +
+                        "`sessionId` INTEGER NOT NULL, `tag` TEXT NOT NULL, PRIMARY KEY(`sessionId`, `tag`), " +
+                        "FOREIGN KEY(`sessionId`) REFERENCES `sessions`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE)"
+                )
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_session_tags_sessionId` ON `session_tags` (`sessionId`)")
+            }
+        }
+
         @Volatile private var instance: AppDatabase? = null
 
         // DB はプロセスに 1 つだけ作る(Activity と Service で共有する)
@@ -71,7 +85,7 @@ abstract class AppDatabase : RoomDatabase() {
             instance ?: synchronized(this) {
                 instance ?: Room.databaseBuilder(
                     context.applicationContext, AppDatabase::class.java, "sleeprec.db",
-                ).addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5).build().also { instance = it }
+                ).addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6).build().also { instance = it }
             }
     }
 }

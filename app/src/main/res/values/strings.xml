@@ -18,6 +18,40 @@
     <string name="debug_analyze">分析</string>
     <string name="debug_event_count">検出イベント: %1$d 件</string>
 
+    <!-- 開始前の確認(FR-2.4)・睡眠前のタグとメモ(FR-2.10) -->
+    <string name="preflight_title">開始前の確認</string>
+    <string name="pf_battery_ok">電池残量 %1$d%%</string>
+    <string name="pf_battery_charging">電池残量 %1$d%%(充電中)</string>
+    <string name="pf_battery_low">電池残量 %1$d%%。50%%未満です。充電しながらの計測をお勧めします。</string>
+    <string name="pf_battery_very_low">電池残量 %1$d%%。30%%未満のため、途中で電池が切れて計測が中断される可能性があります。充電してください。</string>
+    <string name="pf_charging_yes">充電中です。</string>
+    <string name="pf_charging_no">充電していません。充電しながら計測すると、電池切れによる中断を防げます。</string>
+    <string name="pf_placement">置き場所: 枕元のテーブルなどに、胸の高さを目安に置き、マイクを体に向けてください。布団や枕に埋めないでください。</string>
+    <string name="pf_notifications_ok">通知は許可されています(計測中の経過時間が通知に表示されます)。</string>
+    <string name="pf_notifications_ng">通知が許可されていません。計測中の経過時間が通知に表示されず、停止の操作もしにくくなります。</string>
+    <string name="pf_open_notification_settings">通知の設定を開く</string>
+    <string name="pf_battery_opt_ok">バッテリー最適化から除外されています。</string>
+    <string name="pf_battery_opt_ng">バッテリー最適化の対象です。端末によっては、夜間に計測が止められることがあります。除外をお勧めします。</string>
+    <string name="pf_open_battery_settings">バッテリー最適化の設定を開く</string>
+    <string name="pf_mic_ok">マイクは許可されています。</string>
+    <string name="pf_mic_ask">開始するときに、マイクの許可を求めます。</string>
+    <string name="home_wake_hint">今すぐ寝ると、目標の %1$d 時間 %2$d 分で %3$s ごろに起きられます。</string>
+    <string name="tags_title">睡眠前のタグとメモ</string>
+    <string name="tags_hint">お酒、運動、コーヒーなど、今夜の睡眠に影響しそうなことを残せます。タグは 20 文字まで、同じタグは付けられません。</string>
+    <string name="tag_input_label">タグを追加</string>
+    <string name="tag_add">追加</string>
+    <string name="tag_counter">%1$d / %2$d 文字</string>
+    <string name="tag_remove">タグ「%1$s」を外す</string>
+    <string name="tags_recent">最近使ったタグ</string>
+    <string name="tag_error_empty">タグを入力してください。</string>
+    <string name="tag_error_too_long">タグは 20 文字までです。</string>
+    <string name="tag_error_duplicate">同じタグがすでに付いています。</string>
+    <string name="tag_error_too_many">付けられるタグは 10 個までです。</string>
+    <string name="memo_label">メモ(任意)</string>
+    <string name="memo_counter">%1$d / %2$d 文字</string>
+    <string name="detail_tags">タグ: %1$s</string>
+    <string name="detail_memo">メモ: %1$s</string>
+
     <!-- 下部タブ -->
     <string name="tab_record">計測</string>
     <string name="tab_journal">記録</string>

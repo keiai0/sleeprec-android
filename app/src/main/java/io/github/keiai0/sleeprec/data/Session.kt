@@ -19,6 +19,8 @@ data class Session(
     val interruptReason: InterruptReason? = null,
     // 中断をユーザーに案内済みか
     val interruptionAcknowledged: Boolean = false,
+    // 睡眠前のメモ(FR-2.10)。なければ null
+    val memo: String? = null,
 )
 
 enum class SessionStatus {
