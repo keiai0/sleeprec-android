@@ -17,8 +17,10 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
@@ -55,16 +57,27 @@ private const val DETAIL_ROUTE = "journal/{id}"
 @Composable
 fun SleepRecApp(stopRequested: Boolean, onStopRequestConsumed: () -> Unit) {
     val nav = rememberNavController()
+    // NavHost の中身(composable の lambda)は、表示中の画面では更新されないことがある。
+    // 変わる値は、State 経由で中で読む(そのままキャプチャすると、古い値のままになる)
+    val stopRequestedState = rememberUpdatedState(stopRequested)
+    val consumedState = rememberUpdatedState(onStopRequestConsumed)
     val backStack by nav.currentBackStackEntryAsState()
     val route = backStack?.destination?.route
     val currentTab = Tab.entries.firstOrNull { it.route == route }
+    // 暗いモードで計測中は、タブも出さない全画面(暗い計測画面)にする
+    val recording by RecordingState.isRecording.collectAsState()
+    val screenMode by ScreenModeState.mode.collectAsState()
+    val fullscreen = recording && screenMode != ScreenMode.AUTO_LOCK && (route == null || route == Tab.Record.route)
 
     fun goToTab(tab: Tab) {
+        // すでにそのタブにいるときは何もしない。移動すると、同じ画面が作り直されて、
+        // 画面の中の状態(開いたばかりのダイアログなど)が消えてしまう
+        if (tab == currentTab) return
         nav.navigate(tab.route) {
-            // タブを切り替えても、履歴が積み上がらないようにする。同じタブを押したら、その先頭に戻る
+            // タブを切り替えても、履歴が積み上がらないようにする
             popUpTo(nav.graph.findStartDestination().id) { saveState = true }
             launchSingleTop = true
-            restoreState = tab != currentTab
+            restoreState = true
         }
     }
 
@@ -76,7 +89,7 @@ fun SleepRecApp(stopRequested: Boolean, onStopRequestConsumed: () -> Unit) {
     Scaffold(
         bottomBar = {
             // 詳細画面でもタブを出す(Journal を選択中として表示し、他のタブへすぐ移れるようにする)
-            if (currentTab != null || route == DETAIL_ROUTE) {
+            if (!fullscreen && (currentTab != null || route == DETAIL_ROUTE)) {
                 NavigationBar {
                     Tab.entries.forEach { tab ->
                         NavigationBarItem(
@@ -90,9 +103,9 @@ fun SleepRecApp(stopRequested: Boolean, onStopRequestConsumed: () -> Unit) {
             }
         },
     ) { padding ->
-        NavHost(nav, startDestination = Tab.Record.route, modifier = Modifier.padding(padding)) {
+        NavHost(nav, startDestination = Tab.Record.route, modifier = if (fullscreen) Modifier else Modifier.padding(padding)) {
             composable(Tab.Record.route) {
-                RecorderScreen(stopRequested = stopRequested, onStopRequestConsumed = onStopRequestConsumed)
+                RecorderScreen(stopRequested = stopRequestedState.value, onStopRequestConsumed = { consumedState.value() })
             }
             composable(Tab.Journal.route) {
                 SessionListScreen(onOpen = { nav.navigate("journal/$it") })

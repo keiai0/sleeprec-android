@@ -1,5 +1,6 @@
 package io.github.keiai0.sleeprec
 
+import io.github.keiai0.sleeprec.data.PauseReason
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 
@@ -12,6 +13,14 @@ object RecordingState {
 
     fun set(recording: Boolean) {
         _isRecording.value = recording
+    }
+
+    // 一時停止中か(FR-2.5 のマイク占有による自動の一時停止も含む)と、その理由
+    private val _pauseReason = MutableStateFlow<PauseReason?>(null)
+    val pauseReason: StateFlow<PauseReason?> = _pauseReason
+
+    fun setPaused(reason: PauseReason?) {
+        _pauseReason.value = reason
     }
 
     // 閾値調整用のデバッグ表示(Phase 3)。録音スレッドが約0.1秒ごとに更新する

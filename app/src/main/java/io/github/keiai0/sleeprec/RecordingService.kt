@@ -18,6 +18,7 @@ import io.github.keiai0.sleeprec.data.ApneaCandidate
 import io.github.keiai0.sleeprec.data.AudioEvent
 import io.github.keiai0.sleeprec.data.EventType
 import io.github.keiai0.sleeprec.data.InterruptReason
+import io.github.keiai0.sleeprec.data.PauseReason
 import io.github.keiai0.sleeprec.data.SessionStore
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -44,6 +45,8 @@ class RecordingService : Service() {
     companion object {
         const val ACTION_START = "io.github.keiai0.sleeprec.START"
         const val ACTION_FINISH = "io.github.keiai0.sleeprec.FINISH"
+        const val ACTION_PAUSE = "io.github.keiai0.sleeprec.PAUSE"
+        const val ACTION_RESUME = "io.github.keiai0.sleeprec.RESUME"
         const val EXTRA_SAVE = "save"
         const val EXTRA_TAGS = "tags"
         const val EXTRA_MEMO = "memo"
@@ -73,6 +76,7 @@ class RecordingService : Service() {
     // 音の分類器。イベントの書き込みコルーチンだけが使う(スレッドセーフではないため)。初回に読み込む
     private val classifier = lazy { YamnetClassifier(applicationContext) }
     private var sessionStartedAt = 0L
+    private var openPauseId: Long? = null // 再開・終了で閉じる、進行中の一時停止の行
 
     // finishRecording() を通った(=ユーザーが終了を選んだ)か。false のまま破棄されたら「中断」
     private var finished = false
@@ -91,6 +95,8 @@ class RecordingService : Service() {
         when (intent?.action) {
             ACTION_START -> startRecording(intent)
             ACTION_FINISH -> finishRecording(save = intent.getBooleanExtra(EXTRA_SAVE, true))
+            ACTION_PAUSE -> pauseRecording(PauseReason.USER)
+            ACTION_RESUME -> resumeRecording()
         }
         // kill されても自動再起動しない。Android 14 ではバックグラウンドからの
         // マイク系サービス起動が禁止されており、再起動しても失敗するため。
@@ -169,6 +175,7 @@ class RecordingService : Service() {
             .apply { acquire(WAKE_LOCK_TIMEOUT_MS) }
 
         RecordingState.setEventCount(0)
+        RecordingState.setPaused(null)
         RecordingState.set(true)
     }
 
@@ -262,6 +269,39 @@ class RecordingService : Service() {
         }
     }
 
+    /** 一時停止(FR-2.5 の自動停止も、この経路)。マイクを手放し、音は録らない。時間軸は保たれる。 */
+    private fun pauseRecording(reason: PauseReason) {
+        val id = sessionId ?: return
+        val rec = recorder ?: return
+        if (RecordingState.pauseReason.value != null) return // すでに一時停止中
+        rec.pause()
+        RecordingState.setPaused(reason)
+        openPauseId = runBlocking(Dispatchers.IO) { store.beginPause(id, System.currentTimeMillis(), reason) }
+        updateNotification()
+    }
+
+    private fun resumeRecording() {
+        val rec = recorder ?: return
+        if (RecordingState.pauseReason.value == null) return
+        rec.resume()
+        closePause()
+        updateNotification()
+    }
+
+    // 進行中の一時停止を閉じる。再開のときと、終了・破棄のときに呼ぶ(何度呼んでもよい)
+    private fun closePause() {
+        val pauseId = openPauseId
+        if (pauseId != null) {
+            runBlocking(Dispatchers.IO) { store.endPause(pauseId, System.currentTimeMillis()) }
+            openPauseId = null
+        }
+        RecordingState.setPaused(null)
+    }
+
+    private fun updateNotification() {
+        getSystemService(NotificationManager::class.java).notify(NOTIFICATION_ID, buildNotification(sessionStartedAt))
+    }
+
     /** ユーザーが選んだ「保存して終了 / 破棄して終了」を実行する。 */
     private fun finishRecording(save: Boolean) {
         val id = sessionId
@@ -269,6 +309,7 @@ class RecordingService : Service() {
             stopSelf()
             return
         }
+        closePause()
         recorder?.stop() // ヘッダ更新とファイルクローズが終わるまで待つ
         recorder = null
         drainEvents()
@@ -283,6 +324,7 @@ class RecordingService : Service() {
     }
 
     override fun onDestroy() {
+        closePause()
         recorder?.stop()
         drainEvents()
         heartbeatJob?.cancel()
@@ -326,7 +368,7 @@ class RecordingService : Service() {
         )
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(android.R.drawable.ic_btn_speak_now)
-            .setContentTitle(getString(R.string.notification_title))
+            .setContentTitle(getString(if (RecordingState.pauseReason.value != null) R.string.notification_paused else R.string.notification_title))
             // 経過時間: setWhen を起点に、システム側が毎秒カウントアップ表示する。
             // アプリが毎秒通知を更新する必要がなく、電池にも優しい。
             .setUsesChronometer(true)

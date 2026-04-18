@@ -2,6 +2,7 @@
     <string name="app_name">SleepRec</string>
     <string name="channel_name">録音</string>
     <string name="notification_title">録音中</string>
+    <string name="notification_paused">一時停止中(音は録音されていません)</string>
     <string name="notification_stop">停止</string>
 
     <!-- 画面 -->
@@ -17,6 +18,23 @@
     <string name="debug_thresholds">開始 %1$.0f / 終了 %2$.0f dBFS</string>
     <string name="debug_analyze">分析</string>
     <string name="debug_event_count">検出イベント: %1$d 件</string>
+
+    <!-- 画面モード・一時停止・終了(6-3) -->
+    <string name="mode_title">計測中の画面</string>
+    <string name="mode_auto_lock">自動ロック</string>
+    <string name="mode_auto_lock_desc">端末の設定どおりに画面が消えます。電池に一番やさしい設定です。</string>
+    <string name="mode_dark_clock">時計付きで暗く</string>
+    <string name="mode_dark_clock_desc">画面をごく暗くして、時刻と経過時間だけを表示します。夜中に時刻を確かめられます。</string>
+    <string name="mode_dark_off">完全に暗く</string>
+    <string name="mode_dark_off_desc">ほぼ真っ暗にして、何も表示しません。画面に触れると、操作ボタンが数秒だけ現れます。</string>
+    <string name="state_paused">一時停止中</string>
+    <string name="paused_note">一時停止している間は、音を録音していません。この間は、起きていた時間として扱います。</string>
+    <string name="action_pause">一時停止</string>
+    <string name="action_resume">再開</string>
+    <string name="hold_to_finish">長押しで\n終了</string>
+    <string name="dark_recording">● 録音中 %1$s</string>
+    <string name="dark_paused">一時停止中</string>
+    <string name="detail_pauses">一時停止: %1$d 回(合計 %2$s)</string>
 
     <!-- 開始前の確認(FR-2.4)・睡眠前のタグとメモ(FR-2.10) -->
     <string name="preflight_title">開始前の確認</string>

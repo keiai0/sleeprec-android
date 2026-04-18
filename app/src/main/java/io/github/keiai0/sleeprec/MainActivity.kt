@@ -17,6 +17,10 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.material3.RadioButton
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Column
@@ -67,6 +71,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         SessionPolicy.configure(this)
         stopRequested = intent?.getBooleanExtra(EXTRA_REQUEST_STOP, false) == true
+        ScreenModeState.init(this)
         enableEdgeToEdge(
             statusBarStyle = SystemBarStyle.dark(android.graphics.Color.TRANSPARENT),
             navigationBarStyle = SystemBarStyle.dark(android.graphics.Color.TRANSPARENT),
@@ -102,6 +107,8 @@ internal fun RecorderScreen(stopRequested: Boolean, onStopRequestConsumed: () ->
     val store = remember { SessionStore.create(context) }
 
     val isRecording by RecordingState.isRecording.collectAsState()
+    val pauseReason by RecordingState.pauseReason.collectAsState()
+    val screenMode by ScreenModeState.mode.collectAsState()
     val debuggable = context.applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE != 0
     var permissionUi by remember { mutableStateOf(PermissionUi.None) }
     // 終了ダイアログ: null なら非表示。値は、ダイアログを開いた時点の経過時間(ミリ秒)
@@ -175,6 +182,12 @@ internal fun RecorderScreen(stopRequested: Boolean, onStopRequestConsumed: () ->
         ContextCompat.startForegroundService(context, intent)
     }
 
+    // 一時停止 / 再開(夜中に起きたときなど)。サービスが、マイクの解放・再開と、記録の管理を行う
+    fun togglePause() {
+        val action = if (RecordingState.pauseReason.value != null) RecordingService.ACTION_RESUME else RecordingService.ACTION_PAUSE
+        context.startService(Intent(context, RecordingService::class.java).setAction(action))
+    }
+
     fun finishService(save: Boolean) {
         val intent = Intent(context, RecordingService::class.java)
             .setAction(RecordingService.ACTION_FINISH)
@@ -210,18 +223,28 @@ internal fun RecorderScreen(stopRequested: Boolean, onStopRequestConsumed: () ->
     }
 
     if (isRecording) {
-        // 計測中: 最低限の情報だけ
-        Column(
-            modifier = Modifier.fillMaxSize().padding(24.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterVertically),
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
-            Text(stringResource(R.string.state_recording), style = MaterialTheme.typography.headlineMedium)
-            startedAt?.let { start ->
-                Text(text = formatClock(nowMs - start), style = MaterialTheme.typography.displayMedium)
+        val elapsed = startedAt?.let { nowMs - it } ?: 0L
+        if (screenMode == ScreenMode.AUTO_LOCK) {
+            // 自動ロック: 通常の画面。画面は端末の設定どおりに消える(動作は通知の経過時間でも確認できる)
+            Column(
+                modifier = Modifier.fillMaxSize().padding(24.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterVertically),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                Text(
+                    stringResource(if (pauseReason != null) R.string.state_paused else R.string.state_recording),
+                    style = MaterialTheme.typography.headlineMedium,
+                )
+                startedAt?.let { Text(text = formatClock(elapsed), style = MaterialTheme.typography.displayMedium) }
+                if (pauseReason != null) Text(stringResource(R.string.paused_note), style = MaterialTheme.typography.bodyMedium)
+                if (debuggable) DebugPanel()
+                OutlinedButton(onClick = ::togglePause) {
+                    Text(stringResource(if (pauseReason != null) R.string.action_resume else R.string.action_pause))
+                }
+                LongPressButton(stringResource(R.string.hold_to_finish), MaterialTheme.colorScheme.primary, onComplete = ::requestStop)
             }
-            if (debuggable) DebugPanel()
-            Button(onClick = ::requestStop) { Text(stringResource(R.string.button_stop)) }
+        } else {
+            DarkMeasuringScreen(screenMode, elapsed, pauseReason, onTogglePause = ::togglePause, onFinishHold = ::requestStop)
         }
     } else {
         // 停止中: 確認事項とタグをスクロールで見られるようにし、開始ボタンは常に下に出しておく
@@ -231,6 +254,7 @@ internal fun RecorderScreen(stopRequested: Boolean, onStopRequestConsumed: () ->
                 verticalArrangement = Arrangement.spacedBy(20.dp),
             ) {
                 HomeHeader()
+                ScreenModeSelector(screenMode) { ScreenModeState.set(context, it) }
                 PreflightChecklist(deviceStatus)
                 TagEditor(tags, { tags = it }, memo, { memo = it }, recentTags)
             }
@@ -267,6 +291,26 @@ internal fun RecorderScreen(stopRequested: Boolean, onStopRequestConsumed: () ->
         InterruptionDialog(session) {
             interrupted = interrupted - session
             scope.launch(Dispatchers.IO) { store.acknowledge(session.id) }
+        }
+    }
+}
+
+/** 計測中の画面モード(FR-2.3)。開始前に選ぶ。 */
+@Composable
+private fun ScreenModeSelector(selected: ScreenMode, onSelect: (ScreenMode) -> Unit) {
+    Column(Modifier.fillMaxWidth()) {
+        Text(stringResource(R.string.mode_title), style = MaterialTheme.typography.titleMedium)
+        ScreenMode.entries.forEach { mode ->
+            Row(
+                Modifier.fillMaxWidth().clickable { onSelect(mode) }.padding(vertical = 4.dp),
+                verticalAlignment = Alignment.Top,
+            ) {
+                RadioButton(selected = mode == selected, onClick = { onSelect(mode) })
+                Column(Modifier.padding(top = 12.dp)) {
+                    Text(stringResource(mode.titleRes), style = MaterialTheme.typography.bodyLarge)
+                    Text(stringResource(mode.descriptionRes), style = MaterialTheme.typography.bodySmall)
+                }
+            }
         }
     }
 }

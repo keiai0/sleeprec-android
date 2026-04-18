@@ -38,10 +38,18 @@ object SleepAnalyzer {
         EventType.SNORING, EventType.GRINDING, EventType.FART, EventType.ANIMAL, EventType.AMBIENT,
     )
 
-    fun analyze(startedAt: Long, endedAt: Long, events: List<AudioEvent>): SleepAnalysis {
+    /**
+     * @param pauses 一時停止の区間(開始, 終了)のエポックミリ秒。終了が null のものは、計測の終わりまで。
+     *   一時停止中は音を録っていないが、夜中に起きたときに使うものなので、「起きていた」時間として扱う。
+     */
+    fun analyze(
+        startedAt: Long, endedAt: Long, events: List<AudioEvent>,
+        pauses: List<Pair<Long, Long?>> = emptyList(),
+    ): SleepAnalysis {
         val totalMin = ((endedAt - startedAt).coerceAtLeast(0) + 59_999) / 60_000
         val n = totalMin.toInt()
         val activityMs = activityPerMinute(startedAt, n, events)
+        for ((ps, pe) in pauses) addOverlap(activityMs, startedAt, n, ps, pe ?: endedAt)
         val awake = BooleanArray(n) { activityMs[it] >= Thresholds.AWAKE_ACTIVITY_MS }
 
         val onset = findOnset(awake)
@@ -112,16 +120,22 @@ object SleepAnalyzer {
         val out = LongArray(n)
         for (e in events) {
             if (e.type in NOT_ACTIVITY) continue
-            val s = e.startedAt - startedAt
-            val t = s + e.durationMs
-            val first = (s / 60_000).toInt().coerceAtLeast(0)
-            val last = ((t - 1) / 60_000).toInt().coerceAtMost(n - 1)
-            for (m in first..last) {
-                val overlap = min(t, (m + 1) * 60_000L) - max(s, m * 60_000L)
-                if (overlap > 0) out[m] += overlap
-            }
+            addOverlap(out, startedAt, n, e.startedAt, e.startedAt + e.durationMs)
         }
         return out
+    }
+
+    // [from, to)(エポックミリ秒)が、各分にどれだけ重なるかを加える
+    private fun addOverlap(out: LongArray, startedAt: Long, n: Int, from: Long, to: Long) {
+        val s = from - startedAt
+        val t = to - startedAt
+        if (t <= s || n == 0) return
+        val first = (s / 60_000).toInt().coerceAtLeast(0)
+        val last = ((t - 1) / 60_000).toInt().coerceAtMost(n - 1)
+        for (m in first..last) {
+            val overlap = min(t, (m + 1) * 60_000L) - max(s, m * 60_000L)
+            if (overlap > 0) out[m] += overlap
+        }
     }
 
     /** 活動のない分が ONSET_QUIET_MINUTES 続く、最初の位置。なければ null。 */

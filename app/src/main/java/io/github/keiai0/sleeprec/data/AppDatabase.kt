@@ -7,13 +7,14 @@ import androidx.room.RoomDatabase
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
-@Database(entities = [Session::class, LoudnessSample::class, AudioEvent::class, ApneaCandidate::class, SessionTag::class], version = 6, exportSchema = false)
+@Database(entities = [Session::class, LoudnessSample::class, AudioEvent::class, ApneaCandidate::class, SessionTag::class, SessionPause::class], version = 7, exportSchema = false)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun sessionDao(): SessionDao
     abstract fun loudnessDao(): LoudnessDao
     abstract fun audioEventDao(): AudioEventDao
     abstract fun apneaCandidateDao(): ApneaCandidateDao
     abstract fun sessionTagDao(): SessionTagDao
+    abstract fun sessionPauseDao(): SessionPauseDao
 
     companion object {
         // v1 → v2: 1秒ごとの音量テーブルを追加(既存の sessions はそのまま残す)
@@ -78,6 +79,19 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        // v6 → v7: 一時停止の記録
+        private val MIGRATION_6_7 = object : Migration(6, 7) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `session_pauses` (" +
+                        "`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `sessionId` INTEGER NOT NULL, " +
+                        "`startedAt` INTEGER NOT NULL, `endedAt` INTEGER, `reason` TEXT NOT NULL, " +
+                        "FOREIGN KEY(`sessionId`) REFERENCES `sessions`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE)"
+                )
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_session_pauses_sessionId` ON `session_pauses` (`sessionId`)")
+            }
+        }
+
         @Volatile private var instance: AppDatabase? = null
 
         // DB はプロセスに 1 つだけ作る(Activity と Service で共有する)
@@ -85,7 +99,7 @@ abstract class AppDatabase : RoomDatabase() {
             instance ?: synchronized(this) {
                 instance ?: Room.databaseBuilder(
                     context.applicationContext, AppDatabase::class.java, "sleeprec.db",
-                ).addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6).build().also { instance = it }
+                ).addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7).build().also { instance = it }
             }
     }
 }

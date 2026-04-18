@@ -38,6 +38,7 @@ import io.github.keiai0.sleeprec.data.AudioEvent
 import io.github.keiai0.sleeprec.data.EventType
 import io.github.keiai0.sleeprec.data.LoudnessSample
 import io.github.keiai0.sleeprec.data.Session
+import io.github.keiai0.sleeprec.data.SessionPause
 import io.github.keiai0.sleeprec.data.SessionStatus
 import io.github.keiai0.sleeprec.data.SessionStore
 import kotlinx.coroutines.Dispatchers
@@ -123,6 +124,7 @@ fun SessionDetailScreen(sessionId: Long, onBack: () -> Unit) {
     var apneas by remember { mutableStateOf<List<ApneaCandidate>>(emptyList()) }
     var previousNights by remember { mutableStateOf<List<Session>>(emptyList()) }
     var tags by remember { mutableStateOf<List<String>>(emptyList()) }
+    var pauses by remember { mutableStateOf<List<SessionPause>>(emptyList()) }
     var deleting by remember { mutableStateOf<AudioEvent?>(null) }
     var retyping by remember { mutableStateOf<AudioEvent?>(null) }
 
@@ -132,6 +134,7 @@ fun SessionDetailScreen(sessionId: Long, onBack: () -> Unit) {
         events = store.events(sessionId)
         apneas = store.apneaCandidates(sessionId)
         tags = store.tags(sessionId)
+        pauses = store.pauses(sessionId)
         previousNights = session?.let { store.recentCompleted(it.startedAt, Thresholds.CONSISTENCY_NIGHTS - 1) } ?: emptyList()
     }
     LaunchedEffect(sessionId) { load() }
@@ -179,10 +182,17 @@ fun SessionDetailScreen(sessionId: Long, onBack: () -> Unit) {
                     stringResource(R.string.detail_summary, formatMs(sessionEndMs(s)), stringResource(statusLabel(s.status))),
                     Modifier.padding(bottom = 12.dp),
                 )
+                if (pauses.isNotEmpty()) {
+                    val end = s.endedAt ?: s.lastAliveAt
+                    val totalMs = pauses.sumOf { (it.endedAt ?: end) - it.startedAt }
+                    Text(stringResource(R.string.detail_pauses, pauses.size, formatMs(totalMs)))
+                }
                 if (tags.isNotEmpty()) Text(stringResource(R.string.detail_tags, tags.joinToString("、")))
                 s.memo?.let { Text(stringResource(R.string.detail_memo, it), modifier = Modifier.padding(bottom = 4.dp)) }
                 // 睡眠の推定・スコア。音イベントから計算するので、イベントの種別を直すと結果も変わる
-                val analysis = remember(s, events) { SleepAnalyzer.analyze(s.startedAt, s.endedAt ?: s.lastAliveAt, events) }
+                val analysis = remember(s, events, pauses) {
+                    SleepAnalyzer.analyze(s.startedAt, s.endedAt ?: s.lastAliveAt, events, pauses.map { it.startedAt to it.endedAt })
+                }
                 val score = remember(analysis, previousNights) {
                     val nights = (previousNights + s).filter { it.status == SessionStatus.COMPLETED }
                         .map { NightTimes(it.startedAt, it.endedAt ?: it.lastAliveAt) }

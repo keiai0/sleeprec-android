@@ -30,9 +30,11 @@ class WavRecorder(
         private const val SAMPLE_RATE = WavFormat.SAMPLE_RATE
         private const val BYTES_PER_SECOND = WavFormat.BYTES_PER_SECOND
         private const val HEADER_SIZE = WavFormat.HEADER_SIZE
+        private const val FRAME_MS = 100L // 1 フレーム(readBuf)の長さ
     }
 
     @Volatile private var running = false
+    @Volatile private var paused = false
     private var thread: Thread? = null
 
     /** マイクを開いて録音スレッドを起動する。失敗時は例外(呼び出し側で捕捉)。 */
@@ -66,6 +68,15 @@ class WavRecorder(
         thread = Thread({ runLoop(record, internalBufSize) }, "wav-recorder").also { it.start() }
     }
 
+    /**
+     * 一時停止する。マイクを手放し、音は録らず・解析もしない。
+     * 時間軸(イベントの位置・1 秒ごとの音量)がずれないよう、止めている間は無音のフレームを流し続ける。
+     */
+    fun pause() { paused = true }
+
+    /** 一時停止を解除して、マイクを再び開く。 */
+    fun resume() { paused = false }
+
     /** 停止を指示し、ファイルが閉じられるまで待つ。 */
     fun stop() {
         running = false
@@ -87,9 +98,26 @@ class WavRecorder(
                 raf.setLength(0)
                 // データ長がまだ分からないので、サイズ欄 0 のヘッダを先頭に置いて始める
                 raf.write(WavFormat.header(0))
-                record.startRecording()
+                var micOpen = false
+                val silence = ByteArray(readBuf.size) // 一時停止中に流す無音
 
                 while (running) {
+                    if (paused) {
+                        if (micOpen) {
+                            record.stop()
+                            micOpen = false
+                        }
+                        // 0.1 秒ぶんの無音を、時間軸を保つためだけに解析側へ流す(WAV には書かない)
+                        Thread.sleep(FRAME_MS)
+                        onFrame(Loudness.FLOOR_DB)
+                        aggregator.add(Loudness.FLOOR_DB)?.let(onSecond)
+                        detector.feed(silence, silence.size, Loudness.FLOOR_DB)?.let(onEvent)
+                        continue
+                    }
+                    if (!micOpen) {
+                        record.startRecording()
+                        micOpen = true
+                    }
                     // ブロッキング読み取り。データが溜まるまで待ち、読めたバイト数を返す(負ならエラー)
                     val n = record.read(readBuf, 0, readBuf.size)
                     if (n < 0) throw IllegalStateException("AudioRecord.read error: $n")

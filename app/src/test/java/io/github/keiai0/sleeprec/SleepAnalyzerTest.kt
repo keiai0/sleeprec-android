@@ -144,5 +144,29 @@ class SleepAnalyzerTest {
         assertEquals(m.tstMin, m.lightMin + m.deepMin + m.remMin)
     }
 
+    // --- 一時停止 ---
+    private fun pause(fromMin: Int, toMin: Int?) = start + min(fromMin) to toMin?.let { start + min(it) }
+
+    @Test fun pauseCountsAsAwake() {
+        // 200〜209 分の 10 分を一時停止(夜中に起きた) → 覚醒 10 分、5 分以上の中途覚醒 1 回
+        val m = SleepAnalyzer.analyze(start, start + min(480), emptyList(), listOf(pause(200, 210))).metrics
+        assertEquals(10, m.wasoMin)
+        assertEquals(1, m.wakeCount)
+        assertEquals(470, m.tstMin)
+    }
+
+    @Test fun pauseWithoutEndRunsToTheEndOfTheSession() {
+        // 再開されないまま中断された一時停止は、計測の終わりまで(=最後は起きていた扱いで、睡眠の終わりが早まる)
+        val m = SleepAnalyzer.analyze(start, start + min(480), emptyList(), listOf(pause(400, null))).metrics
+        assertEquals(400, m.tstMin)
+        assertEquals(0, m.wasoMin)
+    }
+
+    @Test fun shortPauseDoesNotWake() {
+        // 5 秒の一時停止(10 秒未満)は、覚醒にしない
+        val m = SleepAnalyzer.analyze(start, start + min(480), emptyList(), listOf(start + min(100) to start + min(100) + 5_000)).metrics
+        assertEquals(0, m.wasoMin)
+    }
+
     @Test fun stagesCoverTheWholeNight() = assertEquals(480, analyze(480, emptyList()).stages.size)
 }

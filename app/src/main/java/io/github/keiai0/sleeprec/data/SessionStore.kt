@@ -14,11 +14,12 @@ class SessionStore(
     private val eventDao: AudioEventDao,
     private val apneaDao: ApneaCandidateDao,
     private val tagDao: SessionTagDao,
+    private val pauseDao: SessionPauseDao,
 ) {
 
     companion object {
         fun create(context: Context): SessionStore =
-            AppDatabase.get(context).let { SessionStore(it.sessionDao(), it.loudnessDao(), it.audioEventDao(), it.apneaCandidateDao(), it.sessionTagDao()) }
+            AppDatabase.get(context).let { SessionStore(it.sessionDao(), it.loudnessDao(), it.audioEventDao(), it.apneaCandidateDao(), it.sessionTagDao(), it.sessionPauseDao()) }
     }
 
     suspend fun start(startedAt: Long, wavPath: String): Long =
@@ -123,6 +124,14 @@ class SessionStore(
     suspend fun tags(id: Long): List<String> = tagDao.forSession(id)
 
     suspend fun recentTags(limit: Int): List<String> = tagDao.recent(limit)
+
+    /** 一時停止の開始を記録して、その id を返す。再開・終了時に endPause で閉じる。 */
+    suspend fun beginPause(sessionId: Long, startedAt: Long, reason: PauseReason): Long =
+        pauseDao.insert(SessionPause(sessionId = sessionId, startedAt = startedAt, reason = reason))
+
+    suspend fun endPause(pauseId: Long, endedAt: Long) = pauseDao.end(pauseId, endedAt)
+
+    suspend fun pauses(sessionId: Long): List<SessionPause> = pauseDao.forSession(sessionId)
 
     suspend fun heartbeat(id: Long, now: Long) = dao.updateLastAlive(id, now)
 
