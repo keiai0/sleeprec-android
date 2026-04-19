@@ -125,6 +125,7 @@ fun SessionDetailScreen(sessionId: Long, onBack: () -> Unit) {
     var previousNights by remember { mutableStateOf<List<Session>>(emptyList()) }
     var tags by remember { mutableStateOf<List<String>>(emptyList()) }
     var pauses by remember { mutableStateOf<List<SessionPause>>(emptyList()) }
+    var editingMood by remember { mutableStateOf(false) }
     var deleting by remember { mutableStateOf<AudioEvent?>(null) }
     var retyping by remember { mutableStateOf<AudioEvent?>(null) }
 
@@ -182,6 +183,19 @@ fun SessionDetailScreen(sessionId: Long, onBack: () -> Unit) {
                     stringResource(R.string.detail_summary, formatMs(sessionEndMs(s)), stringResource(statusLabel(s.status))),
                     Modifier.padding(bottom = 12.dp),
                 )
+                // 起床時の気分(FR-2.11)。保存された記録(短時間睡眠を含む)だけ、入力・変更できる
+                if (s.status == SessionStatus.COMPLETED || s.status == SessionStatus.SHORT_SLEEP) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        val mood = Mood.of(s.mood)
+                        Text(
+                            if (mood != null) stringResource(R.string.detail_mood, mood.emoji, stringResource(mood.labelRes))
+                            else stringResource(R.string.detail_mood_none),
+                        )
+                        TextButton(onClick = { editingMood = true }) {
+                            Text(stringResource(if (mood != null) R.string.mood_change else R.string.mood_enter))
+                        }
+                    }
+                }
                 if (pauses.isNotEmpty()) {
                     val end = s.endedAt ?: s.lastAliveAt
                     val totalMs = pauses.sumOf { (it.endedAt ?: end) - it.startedAt }
@@ -193,10 +207,10 @@ fun SessionDetailScreen(sessionId: Long, onBack: () -> Unit) {
                 val analysis = remember(s, events, pauses) {
                     SleepAnalyzer.analyze(s.startedAt, s.endedAt ?: s.lastAliveAt, events, pauses.map { it.startedAt to it.endedAt })
                 }
-                val score = remember(analysis, previousNights) {
+                val score = remember(analysis, previousNights, s.mood) {
                     val nights = (previousNights + s).filter { it.status == SessionStatus.COMPLETED }
                         .map { NightTimes(it.startedAt, it.endedAt ?: it.lastAliveAt) }
-                    SleepScore.compute(s.status, analysis.metrics, nights, mood = null) // 気分の入力は Phase 6
+                    SleepScore.compute(s.status, analysis.metrics, nights, mood = s.mood)
                 }
                 SleepSection(analysis, score)
                 LoudnessGraph(
@@ -269,6 +283,20 @@ fun SessionDetailScreen(sessionId: Long, onBack: () -> Unit) {
                 }
             },
             onDismiss = { retyping = null },
+        )
+    }
+
+    if (editingMood) {
+        MoodDialog(
+            current = session?.mood,
+            onSelect = { mood ->
+                editingMood = false
+                scope.launch {
+                    withContext(Dispatchers.IO) { store.setMood(sessionId, mood) }
+                    load()
+                }
+            },
+            onDismiss = { editingMood = false },
         )
     }
 

@@ -48,6 +48,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import io.github.keiai0.sleeprec.data.AppDatabase
+import io.github.keiai0.sleeprec.data.PauseReason
 import io.github.keiai0.sleeprec.data.Session
 import io.github.keiai0.sleeprec.data.SessionStore
 import kotlinx.coroutines.Dispatchers
@@ -113,6 +114,8 @@ internal fun RecorderScreen(stopRequested: Boolean, onStopRequestConsumed: () ->
     var permissionUi by remember { mutableStateOf(PermissionUi.None) }
     // 終了ダイアログ: null なら非表示。値は、ダイアログを開いた時点の経過時間(ミリ秒)
     var stopElapsedMs by remember { mutableStateOf<Long?>(null) }
+    var stopSessionId by remember { mutableStateOf<Long?>(null) }   // 終了しようとしている計測の id
+    var moodSessionId by remember { mutableStateOf<Long?>(null) }   // 気分を尋ねる記録の id(保存して終了した後)
     // 案内待ちの中断セッション
     var interrupted by remember { mutableStateOf<List<Session>>(emptyList()) }
 
@@ -146,6 +149,7 @@ internal fun RecorderScreen(stopRequested: Boolean, onStopRequestConsumed: () ->
     fun requestStop() {
         scope.launch {
             val active = withContext(Dispatchers.IO) { store.activeSession() } ?: return@launch
+            stopSessionId = active.id
             stopElapsedMs = System.currentTimeMillis() - active.startedAt
         }
     }
@@ -193,6 +197,11 @@ internal fun RecorderScreen(stopRequested: Boolean, onStopRequestConsumed: () ->
             .setAction(RecordingService.ACTION_FINISH)
             .putExtra(RecordingService.EXTRA_SAVE, save)
         context.startService(intent)
+        // 保存して終了したときは、起床時の気分を尋ねる(FR-2.11)。破棄・10 分未満で保存されない場合は尋ねない
+        val elapsed = stopElapsedMs
+        if (save && elapsed != null && SessionPolicy.classify(elapsed) != SessionPolicy.Outcome.NOT_SAVED) {
+            moodSessionId = stopSessionId
+        }
         stopElapsedMs = null
     }
 
@@ -236,10 +245,17 @@ internal fun RecorderScreen(stopRequested: Boolean, onStopRequestConsumed: () ->
                     style = MaterialTheme.typography.headlineMedium,
                 )
                 startedAt?.let { Text(text = formatClock(elapsed), style = MaterialTheme.typography.displayMedium) }
-                if (pauseReason != null) Text(stringResource(R.string.paused_note), style = MaterialTheme.typography.bodyMedium)
+                when (pauseReason) {
+                    PauseReason.USER -> Text(stringResource(R.string.paused_note), style = MaterialTheme.typography.bodyMedium)
+                    PauseReason.MIC_BUSY -> Text(stringResource(R.string.mic_busy_note), style = MaterialTheme.typography.bodyMedium)
+                    null -> {}
+                }
                 if (debuggable) DebugPanel()
-                OutlinedButton(onClick = ::togglePause) {
-                    Text(stringResource(if (pauseReason != null) R.string.action_resume else R.string.action_pause))
+                // マイクを他のアプリに取られている間は、自動で再開するので、ボタンは出さない
+                if (pauseReason != PauseReason.MIC_BUSY) {
+                    OutlinedButton(onClick = ::togglePause) {
+                        Text(stringResource(if (pauseReason != null) R.string.action_resume else R.string.action_pause))
+                    }
                 }
                 LongPressButton(stringResource(R.string.hold_to_finish), MaterialTheme.colorScheme.primary, onComplete = ::requestStop)
             }
@@ -283,6 +299,17 @@ internal fun RecorderScreen(stopRequested: Boolean, onStopRequestConsumed: () ->
             elapsedMs = elapsed,
             onFinish = ::finishService,
             onContinue = { stopElapsedMs = null },
+        )
+    }
+
+    moodSessionId?.let { id ->
+        MoodDialog(
+            current = null,
+            onSelect = { mood ->
+                moodSessionId = null
+                scope.launch(Dispatchers.IO) { store.setMood(id, mood) }
+            },
+            onDismiss = { moodSessionId = null },
         )
     }
 

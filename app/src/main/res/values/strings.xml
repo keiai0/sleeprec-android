@@ -2,6 +2,7 @@
     <string name="app_name">SleepRec</string>
     <string name="channel_name">録音</string>
     <string name="notification_title">録音中</string>
+    <string name="notification_mic_busy">一時停止中(他のアプリがマイクを使っています)</string>
     <string name="notification_paused">一時停止中(音は録音されていません)</string>
     <string name="notification_stop">停止</string>
 
@@ -35,6 +36,27 @@
     <string name="dark_recording">● 録音中 %1$s</string>
     <string name="dark_paused">一時停止中</string>
     <string name="detail_pauses">一時停止: %1$d 回(合計 %2$s)</string>
+
+    <!-- マイク占有(FR-2.5)・起床時の気分(FR-2.11) -->
+    <string name="alert_channel_name">マイクの警告</string>
+    <string name="mic_busy_title">マイクが他のアプリに使われています</string>
+    <string name="mic_busy_text">計測を一時停止しています。マイクが空くと、自動で再開します。</string>
+    <string name="mic_resumed_title">マイクが空いたため、計測を再開しました</string>
+    <string name="mic_resumed_text">%1$s に再開しました。一時停止していた間は、録音されていません。</string>
+    <string name="mic_busy_note">他のアプリがマイクを使っているため、一時停止しています。マイクが空くと、自動で再開します。</string>
+    <string name="dark_mic_busy">一時停止中(マイク使用中)</string>
+    <string name="mood_title">起床時の気分は？</string>
+    <string name="mood_hint">スコアの「気分」に使います。あとで、記録の詳細からも入力できます。</string>
+    <string name="mood_later">あとで</string>
+    <string name="mood_1">とても悪い</string>
+    <string name="mood_2">悪い</string>
+    <string name="mood_3">ふつう</string>
+    <string name="mood_4">良い</string>
+    <string name="mood_5">とても良い</string>
+    <string name="detail_mood">起床時の気分: %1$s %2$s</string>
+    <string name="detail_mood_none">起床時の気分: 未入力</string>
+    <string name="mood_enter">入力する</string>
+    <string name="mood_change">変更</string>
 
     <!-- 開始前の確認(FR-2.4)・睡眠前のタグとメモ(FR-2.10) -->
     <string name="preflight_title">開始前の確認</string>

@@ -21,6 +21,8 @@ data class Session(
     val interruptionAcknowledged: Boolean = false,
     // 睡眠前のメモ(FR-2.10)。なければ null
     val memo: String? = null,
+    // 起床時の気分(FR-2.11)。1(とても悪い)〜5(とても良い)。未入力は null
+    val mood: Int? = null,
 )
 
 enum class SessionStatus {

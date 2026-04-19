@@ -2,13 +2,16 @@ package io.github.keiai0.sleeprec
 
 import android.annotation.SuppressLint
 import android.media.AudioFormat
+import android.media.AudioManager
 import android.media.AudioRecord
+import android.media.AudioRecordingConfiguration
 import android.media.MediaRecorder
 import android.util.Log
 import java.io.File
 import java.io.RandomAccessFile
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
+import java.util.concurrent.Executor
 
 /**
  * AudioRecord で生PCMを読み取り、WAVファイルに書き続ける。
@@ -22,6 +25,9 @@ class WavRecorder(
     private val onEvent: (DetectedEvent) -> Unit = {},
     // 0.1秒フレームごとの音量。デバッグ表示用
     private val onFrame: (Float) -> Unit = {},
+    // 他のアプリにマイクを取られて無音にされた(true)/ 戻った(false)とき、callbackExecutor 上で呼ばれる(FR-2.5)
+    private val callbackExecutor: Executor? = null,
+    private val onSilenceChanged: (silenced: Boolean) -> Unit = {},
     // 録音スレッドが終了したとき(正常停止でも異常でも)に、そのスレッド上で呼ばれる
     private val onFinished: (error: Throwable?) -> Unit,
 ) {
@@ -36,6 +42,9 @@ class WavRecorder(
     @Volatile private var running = false
     @Volatile private var paused = false
     private var thread: Thread? = null
+    @Volatile private var audioRecord: AudioRecord? = null
+    private var recordingCallback: AudioManager.AudioRecordingCallback? = null
+    private var lastSilenced = false
 
     /** マイクを開いて録音スレッドを起動する。失敗時は例外(呼び出し側で捕捉)。 */
     @SuppressLint("MissingPermission") // 権限チェックは Activity 側で済んでいる前提
@@ -63,6 +72,9 @@ class WavRecorder(
             error("AudioRecord init failed (マイクが他アプリに使われている等)")
         }
 
+        audioRecord = record
+        registerSilenceCallback(record)
+
         outFile.parentFile?.mkdirs()
         running = true
         thread = Thread({ runLoop(record, internalBufSize) }, "wav-recorder").also { it.start() }
@@ -76,6 +88,26 @@ class WavRecorder(
 
     /** 一時停止を解除して、マイクを再び開く。 */
     fun resume() { paused = false }
+
+    /** いま、他のアプリにマイクを取られて無音にされているか。 */
+    fun isSilenced(): Boolean = audioRecord?.activeRecordingConfiguration?.isClientSilenced == true
+
+    // Android 10 以降、マイクは 1 つのアプリにしか実際の音を渡さない(通話や、前面のアプリの録音が優先される)。
+    // 取られた側は無音のデータを受け取り続けるので、AudioRecord 自身の状態(isClientSilenced)の変化で検知する
+    private fun registerSilenceCallback(record: AudioRecord) {
+        val executor = callbackExecutor ?: return
+        val cb = object : AudioManager.AudioRecordingCallback() {
+            override fun onRecordingConfigChanged(configs: MutableList<AudioRecordingConfiguration>?) {
+                val silenced = record.activeRecordingConfiguration?.isClientSilenced ?: return
+                if (silenced != lastSilenced) {
+                    lastSilenced = silenced
+                    onSilenceChanged(silenced)
+                }
+            }
+        }
+        recordingCallback = cb
+        record.registerAudioRecordingCallback(executor, cb)
+    }
 
     /** 停止を指示し、ファイルが閉じられるまで待つ。 */
     fun stop() {
@@ -143,6 +175,7 @@ class WavRecorder(
             Log.e(TAG, "recording failed", t)
             error = t
         } finally {
+            recordingCallback?.let { record.unregisterAudioRecordingCallback(it) }
             try { record.stop() } catch (_: IllegalStateException) {}
             record.release()
             running = false

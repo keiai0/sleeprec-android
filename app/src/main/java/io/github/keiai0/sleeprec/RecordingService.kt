@@ -12,6 +12,7 @@ import android.os.IBinder
 import android.os.PowerManager
 import android.util.Log
 import androidx.core.app.NotificationCompat
+import androidx.core.content.ContextCompat
 import androidx.core.app.ServiceCompat
 import io.github.keiai0.sleeprec.data.AppDatabase
 import io.github.keiai0.sleeprec.data.ApneaCandidate
@@ -52,6 +53,8 @@ class RecordingService : Service() {
         const val EXTRA_MEMO = "memo"
         private const val CHANNEL_ID = "recording"
         private const val NOTIFICATION_ID = 1
+        private const val MIC_ALERT_NOTIFICATION_ID = 2
+        private const val ALERT_CHANNEL_ID = "mic_alert"
         private const val TAG = "RecordingService"
         private const val WAKE_LOCK_TIMEOUT_MS = 14L * 60 * 60 * 1000 // 念のための上限 14 時間
         private const val HEARTBEAT_INTERVAL_MS = 30_000L
@@ -136,6 +139,8 @@ class RecordingService : Service() {
             onSecond = { pendingLoudness.add(it) },
             onEvent = { events.trySend(it) },
             onFrame = RecordingState::setCurrentDb,
+            callbackExecutor = ContextCompat.getMainExecutor(this),
+            onSilenceChanged = ::onMicSilenceChanged,
         ) { error ->
             // 録音スレッドが終わった。エラー由来ならサービスごと止める(onDestroy で中断として記録される)
             if (error != null) {
@@ -274,7 +279,8 @@ class RecordingService : Service() {
         val id = sessionId ?: return
         val rec = recorder ?: return
         if (RecordingState.pauseReason.value != null) return // すでに一時停止中
-        rec.pause()
+        // ユーザーの一時停止は、マイクを手放す。マイクを取られた場合は、こちらは何もしない(戻ったかを知るため、マイクは開いたままにする)
+        if (reason == PauseReason.USER) rec.pause()
         RecordingState.setPaused(reason)
         openPauseId = runBlocking(Dispatchers.IO) { store.beginPause(id, System.currentTimeMillis(), reason) }
         updateNotification()
@@ -282,10 +288,55 @@ class RecordingService : Service() {
 
     private fun resumeRecording() {
         val rec = recorder ?: return
-        if (RecordingState.pauseReason.value == null) return
+        // 再開できるのは、ユーザーの一時停止だけ。マイクを取られた場合は、戻ったときに自動で再開する
+        if (RecordingState.pauseReason.value != PauseReason.USER) return
         rec.resume()
         closePause()
         updateNotification()
+        // 再開した時点で、すでにマイクを取られていれば、そのまま「マイクを取られた」状態にする
+        if (rec.isSilenced()) onMicSilenceChanged(true)
+    }
+
+    /**
+     * FR-2.5: 他のアプリ(通話、音声メモなど)がマイクを使うと、こちらは無音になる。
+     * その間を一時停止として記録して通知し、マイクが戻ったら自動で再開する。
+     * ユーザーが一時停止している間は、何もしない(すでにマイクを手放している)。
+     */
+    private fun onMicSilenceChanged(silenced: Boolean) {
+        if (sessionId == null || recorder == null) return
+        val reason = RecordingState.pauseReason.value
+        if (silenced) {
+            if (reason != null) return
+            pauseRecording(PauseReason.MIC_BUSY)
+            notifyMicBusy(busy = true)
+        } else if (reason == PauseReason.MIC_BUSY) {
+            closePause()
+            updateNotification()
+            notifyMicBusy(busy = false)
+        }
+    }
+
+    // 朝に気づけるよう、消えない通知で知らせる(音は鳴らさない)。マイクが戻ったら、同じ通知を「再開した」に書き換える
+    private fun notifyMicBusy(busy: Boolean) {
+        val nm = getSystemService(NotificationManager::class.java)
+        val openApp = PendingIntent.getActivity(
+            this, 0, activityIntent(requestStop = false),
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+        )
+        val time = java.text.DateFormat.getTimeInstance(java.text.DateFormat.SHORT).format(java.util.Date())
+        val n = NotificationCompat.Builder(this, ALERT_CHANNEL_ID)
+            .setSmallIcon(android.R.drawable.ic_btn_speak_now)
+            .setContentTitle(getString(if (busy) R.string.mic_busy_title else R.string.mic_resumed_title))
+            .setContentText(getString(if (busy) R.string.mic_busy_text else R.string.mic_resumed_text, time))
+            .setContentIntent(openApp)
+            .setOngoing(busy)
+            .setAutoCancel(!busy)
+            .build()
+        try {
+            nm.notify(MIC_ALERT_NOTIFICATION_ID, n)
+        } catch (e: SecurityException) {
+            Log.w(TAG, "notify failed (permission)", e)
+        }
     }
 
     // 進行中の一時停止を閉じる。再開のときと、終了・破棄のときに呼ぶ(何度呼んでもよい)
@@ -353,6 +404,10 @@ class RecordingService : Service() {
         nm.createNotificationChannel(
             NotificationChannel(CHANNEL_ID, getString(R.string.channel_name), NotificationManager.IMPORTANCE_LOW)
         )
+        // マイクを他のアプリに取られたことの通知。こちらも音は鳴らさない(夜中に起こさない)
+        nm.createNotificationChannel(
+            NotificationChannel(ALERT_CHANNEL_ID, getString(R.string.alert_channel_name), NotificationManager.IMPORTANCE_LOW)
+        )
     }
 
     private fun buildNotification(startedAtMillis: Long): Notification {
@@ -368,7 +423,15 @@ class RecordingService : Service() {
         )
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(android.R.drawable.ic_btn_speak_now)
-            .setContentTitle(getString(if (RecordingState.pauseReason.value != null) R.string.notification_paused else R.string.notification_title))
+            .setContentTitle(
+                getString(
+                    when (RecordingState.pauseReason.value) {
+                        PauseReason.USER -> R.string.notification_paused
+                        PauseReason.MIC_BUSY -> R.string.notification_mic_busy
+                        null -> R.string.notification_title
+                    }
+                )
+            )
             // 経過時間: setWhen を起点に、システム側が毎秒カウントアップ表示する。
             // アプリが毎秒通知を更新する必要がなく、電池にも優しい。
             .setUsesChronometer(true)

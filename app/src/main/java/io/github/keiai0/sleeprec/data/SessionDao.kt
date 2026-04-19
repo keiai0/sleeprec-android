@@ -44,6 +44,10 @@ interface SessionDao {
     @Query("SELECT * FROM sessions WHERE status != 'RECORDING' AND startedAt < :cutoff")
     suspend fun finishedBefore(cutoff: Long): List<Session>
 
+    // 気分だけを更新する(行全体を書き換えると、終了処理との競合で、他の項目を古い値に戻してしまうため)
+    @Query("UPDATE sessions SET mood = :mood WHERE id = :id")
+    suspend fun setMood(id: Long, mood: Int?)
+
     @Query("UPDATE sessions SET lastAliveAt = :time WHERE id = :id")
     suspend fun updateLastAlive(id: Long, time: Long)
 }

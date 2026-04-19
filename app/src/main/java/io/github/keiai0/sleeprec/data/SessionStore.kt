@@ -121,6 +121,8 @@ class SessionStore(
         tagDao.insertAll(tags.map { SessionTag(id, it) })
     }
 
+    suspend fun setMood(id: Long, mood: Int?) = dao.setMood(id, mood)
+
     suspend fun tags(id: Long): List<String> = tagDao.forSession(id)
 
     suspend fun recentTags(limit: Int): List<String> = tagDao.recent(limit)

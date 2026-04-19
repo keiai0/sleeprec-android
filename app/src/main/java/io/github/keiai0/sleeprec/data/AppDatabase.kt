@@ -7,7 +7,7 @@ import androidx.room.RoomDatabase
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
-@Database(entities = [Session::class, LoudnessSample::class, AudioEvent::class, ApneaCandidate::class, SessionTag::class, SessionPause::class], version = 7, exportSchema = false)
+@Database(entities = [Session::class, LoudnessSample::class, AudioEvent::class, ApneaCandidate::class, SessionTag::class, SessionPause::class], version = 8, exportSchema = false)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun sessionDao(): SessionDao
     abstract fun loudnessDao(): LoudnessDao
@@ -92,6 +92,13 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        // v7 → v8: 起床時の気分(sessions.mood)
+        private val MIGRATION_7_8 = object : Migration(7, 8) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE `sessions` ADD COLUMN `mood` INTEGER")
+            }
+        }
+
         @Volatile private var instance: AppDatabase? = null
 
         // DB はプロセスに 1 つだけ作る(Activity と Service で共有する)
@@ -99,7 +106,7 @@ abstract class AppDatabase : RoomDatabase() {
             instance ?: synchronized(this) {
                 instance ?: Room.databaseBuilder(
                     context.applicationContext, AppDatabase::class.java, "sleeprec.db",
-                ).addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7).build().also { instance = it }
+                ).addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8).build().also { instance = it }
             }
     }
 }

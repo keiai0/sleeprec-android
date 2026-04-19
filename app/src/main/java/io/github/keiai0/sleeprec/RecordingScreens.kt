@@ -149,7 +149,11 @@ fun DarkMeasuringScreen(
             }
             if (mode == ScreenMode.DARK_CLOCK || pauseReason != null) {
                 Text(
-                    if (pauseReason != null) stringResource(R.string.dark_paused) else stringResource(R.string.dark_recording, formatElapsed(elapsedMs)),
+                    when (pauseReason) {
+                        PauseReason.USER -> stringResource(R.string.dark_paused)
+                        PauseReason.MIC_BUSY -> stringResource(R.string.dark_mic_busy)
+                        null -> stringResource(R.string.dark_recording, formatElapsed(elapsedMs))
+                    },
                     color = dim,
                     style = MaterialTheme.typography.titleMedium,
                 )
@@ -157,8 +161,10 @@ fun DarkMeasuringScreen(
                 Text("●", color = dimmer, style = MaterialTheme.typography.titleLarge) // 動作中を示す、ごく小さな印
             }
             if (showControls) {
-                TextButton(onClick = onTogglePause) {
-                    Text(stringResource(if (pauseReason != null) R.string.action_resume else R.string.action_pause), color = dim, style = MaterialTheme.typography.titleMedium)
+                if (pauseReason != PauseReason.MIC_BUSY) {
+                    TextButton(onClick = onTogglePause) {
+                        Text(stringResource(if (pauseReason != null) R.string.action_resume else R.string.action_pause), color = dim, style = MaterialTheme.typography.titleMedium)
+                    }
                 }
                 LongPressButton(stringResource(R.string.hold_to_finish), dim, onFinishHold)
             }
