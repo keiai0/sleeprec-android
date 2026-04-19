@@ -112,11 +112,23 @@
     <string name="status_interrupted">中断</string>
     <string name="status_recording">計測中</string>
     <string name="detail_summary">計測時間 %1$s ・ %2$s</string>
-    <string name="graph_hint">グラフをタップすると、最も近い音声を再生します。</string>
+    <string name="graph_hint">タイムラインをタップすると、その時刻に最も近い音声を再生します。塗りつぶしのマーカーは音声あり、輪郭だけは削除済みです。灰色の帯は一時停止していた時間です。</string>
+    <string name="timeline_title">タイムライン</string>
+    <string name="marker_snore">いびき</string>
+    <string name="marker_talk">寝言</string>
+    <string name="marker_cough">咳</string>
+    <string name="marker_other">その他</string>
+    <string name="marker_apnea">無呼吸の候補</string>
     <string name="clips_title">音声イベント(%1$d 件)</string>
     <string name="clips_empty">音声イベントはありません。</string>
     <string name="clip_detail">長さ %1$s ・ 最大 %2$.1f dBFS ・ 開始から %3$s</string>
     <string name="audio_deleted">音声は削除済み</string>
+    <string name="menu_more">操作</string>
+    <string name="menu_save">端末に保存</string>
+    <string name="menu_share">共有</string>
+    <string name="export_saved">「音楽」フォルダの「SleepRec」に保存しました。</string>
+    <string name="export_failed">保存できませんでした。</string>
+    <string name="share_failed">共有できませんでした。</string>
     <string name="play">再生</string>
     <string name="pause">一時停止</string>
     <string name="delete">削除</string>
@@ -140,6 +152,11 @@
     <string name="change_type_title">種別を選ぶ</string>
     <string name="snore_title">いびき(目安)</string>
     <string name="snore_detail">%1$d 回 ・ 合計 %2$s ・ 最大 %3$.1f / 平均 %4$.1f dBFS</string>
+    <string name="snore_level_quiet">静か</string>
+    <string name="snore_level_light">軽い</string>
+    <string name="snore_level_loud">大きい</string>
+    <string name="snore_level_very_loud">非常に大きい</string>
+    <string name="snore_levels">強度: 静か %1$d ・ 軽い %2$d ・ 大きい %3$d ・ 非常に大きい %4$d(最大は「%5$s」)。端末のマイクの感度による目安です。</string>
     <string name="snore_times">発生時刻: %1$s</string>
 
     <!-- 睡眠・スコア -->

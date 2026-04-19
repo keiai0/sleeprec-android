@@ -34,6 +34,17 @@
             </intent-filter>
         </activity>
 
+        <!-- クリップの共有(FR-4.8)。共有の相手には、その 1 回だけ読める権限を渡す。外からは直接アクセスできない -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
+
         <!-- exported=false: 他アプリからは起動させない。
              foregroundServiceType: コード側の startForeground() で渡す type の上限をここで宣言する -->
         <service

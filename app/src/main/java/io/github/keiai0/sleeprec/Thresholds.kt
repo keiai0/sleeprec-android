@@ -57,6 +57,11 @@ object Thresholds {
     const val CONSISTENCY_SD_FULL_MIN = 30.0 // 就寝・起床時刻の標準偏差(分)がこれ以下で 100%
     const val CONSISTENCY_SD_ZERO_MIN = 90.0 // これ以上で 0%
 
+    // --- いびきの強度区分(Phase 7)。最大 dBFS による目安。端末のマイク感度で変わる相対値なので、暫定 ---
+    const val SNORE_LIGHT_DB = -33f      // これ以上で「軽い」(未満は「静か」)
+    const val SNORE_LOUD_DB = -25f       // これ以上で「大きい」
+    const val SNORE_VERY_LOUD_DB = -15f  // これ以上で「非常に大きい」
+
     // --- 保持ポリシー(PLAN §6 #6) ---
     const val MAX_CLIPS_PER_SESSION = 20 // 1晩に音声を残す数。超えた分は最大 dB の大きい順に残す
     const val AUDIO_RETENTION_DAYS = 7L  // 音声(クリップ、全録音)を自動削除するまでの日数

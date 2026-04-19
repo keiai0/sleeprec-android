@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 他のアプリへ共有できるのは、クリップ(clips/)だけ。全録音や DB は共有できない -->
+<paths>
+    <external-files-path name="clips" path="clips/" />
+</paths>

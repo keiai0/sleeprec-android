@@ -213,20 +213,22 @@ fun SessionDetailScreen(sessionId: Long, onBack: () -> Unit) {
                     SleepScore.compute(s.status, analysis.metrics, nights, mood = s.mood)
                 }
                 SleepSection(analysis, score)
-                LoudnessGraph(
+                Text(stringResource(R.string.timeline_title), style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = 8.dp, bottom = 4.dp))
+                val targets = remember(events, apneas, s) { ClipPlayback.targets(events, apneas, s.startedAt) }
+                SleepTimeline(
+                    stages = analysis.stages,
                     samples = samples,
                     events = events,
+                    apneas = apneas,
+                    pauses = pauses.map { it.startedAt to it.endedAt },
                     sessionStartedAt = s.startedAt,
                     totalMs = totalMs,
+                    targets = targets,
                     playingId = player.currentId,
                     playPositionMs = player.positionMs,
-                    onTap = { tapMs -> ClipPlayback.nearestPlayable(events, s.startedAt, tapMs)?.let(player::play) },
+                    onTap = { t -> player.play(t.id, t.path, t.maxDb) },
                 )
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    Text(formatTime(s.startedAt), style = MaterialTheme.typography.labelSmall)
-                    Text(formatTime(s.startedAt + totalMs), style = MaterialTheme.typography.labelSmall)
-                }
-                Text(stringResource(R.string.graph_hint), style = MaterialTheme.typography.labelSmall)
+                Text(stringResource(R.string.graph_hint), style = MaterialTheme.typography.labelSmall, modifier = Modifier.padding(top = 4.dp))
                 SnoreSummary.of(events)?.let { snore ->
                     Text(
                         stringResource(R.string.snore_title),
@@ -234,6 +236,14 @@ fun SessionDetailScreen(sessionId: Long, onBack: () -> Unit) {
                         modifier = Modifier.padding(top = 16.dp),
                     )
                     Text(stringResource(R.string.snore_detail, snore.count, formatMs(snore.totalMs), snore.maxDb, snore.avgDb))
+                    Text(
+                        stringResource(
+                            R.string.snore_levels,
+                            snore.levelCounts.getValue(SnoreLevel.QUIET), snore.levelCounts.getValue(SnoreLevel.LIGHT),
+                            snore.levelCounts.getValue(SnoreLevel.LOUD), snore.levelCounts.getValue(SnoreLevel.VERY_LOUD),
+                            stringResource(snore.maxLevel.labelRes),
+                        )
+                    )
                     Text(
                         stringResource(R.string.snore_times, snore.times.joinToString(" ") { formatTime(it).take(5) }),
                         style = MaterialTheme.typography.labelSmall,
@@ -332,6 +342,8 @@ private fun ClipRow(
     Column(Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
         Text(
             "${formatTime(e.startedAt)}  ${stringResource(e.type.labelRes)}" +
+                // いびきは、強度の区分も添える
+                (if (e.type == EventType.SNORING) "(${stringResource(SnoreLevel.of(e.maxDb).labelRes)})" else "") +
                 if (e.typeCorrected) stringResource(R.string.type_corrected_mark) else "",
             style = MaterialTheme.typography.titleSmall,
         )
@@ -348,27 +360,17 @@ private fun ClipRow(
                     Text(stringResource(if (current && player.isPlaying) R.string.pause else R.string.play))
                 }
             }
-            if (analyze != null && hasAudio) {
-                TextButton(onClick = {
-                    analysis = "…"
-                    scope.launch { analysis = analyze(e) }
-                }) { Text(stringResource(R.string.debug_analyze)) }
-            }
             TextButton(onClick = onRetype) { Text(stringResource(R.string.change_type)) }
-            TextButton(onClick = onDelete) { Text(stringResource(R.string.delete)) }
+            // 保存・共有・削除(デバッグビルドでは分析も)は、「操作」メニューにまとめる
+            ClipMenu(
+                path = e.clipPath,
+                fileName = ClipExport.fileName(e.startedAt, e.type.name.lowercase()),
+                onDelete = onDelete,
+                onAnalyze = analyze?.let { run -> { analysis = "…"; scope.launch { analysis = run(e) } } },
+            )
         }
         analysis?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
-        if (current) {
-            Slider(
-                value = player.positionMs.toFloat(),
-                onValueChange = { player.seekTo(it.toInt()) },
-                valueRange = 0f..player.durationMs.coerceAtLeast(1).toFloat(),
-            )
-            Text(
-                "${formatMs(player.positionMs.toLong())} / ${formatMs(player.durationMs.toLong())}",
-                style = MaterialTheme.typography.labelSmall,
-            )
-        }
+        if (current && e.clipPath != null) PlaybackPanel(player, e.clipPath)
     }
 }
 
@@ -412,7 +414,7 @@ private fun levelLabel(level: ApneaLevel): Int = when (level) {
     ApneaLevel.SEVERE -> R.string.level_severe
 }
 
-/** 無呼吸の候補 1 件。前後を含むクリップを再生できる。 */
+/** 無呼吸の候補 1 件。前後を含むクリップを再生・保存・共有できる。 */
 @Composable
 private fun ApneaRow(c: ApneaCandidate, player: ClipPlayer) {
     val playId = -c.id // イベントの id と重ならないよう負の値にする
@@ -423,23 +425,14 @@ private fun ApneaRow(c: ApneaCandidate, player: ClipPlayer) {
         if (c.clipPath == null) {
             Text(stringResource(R.string.audio_deleted), style = MaterialTheme.typography.labelMedium)
         } else {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
                 TextButton(onClick = { if (current) player.togglePause() else player.play(playId, c.clipPath, c.maxDb) }) {
                     Text(stringResource(if (current && player.isPlaying) R.string.pause else R.string.play))
                 }
+                ClipMenu(path = c.clipPath, fileName = ClipExport.fileName(c.startedAt, "apnea"), onDelete = null)
             }
         }
-        if (current) {
-            Slider(
-                value = player.positionMs.toFloat(),
-                onValueChange = { player.seekTo(it.toInt()) },
-                valueRange = 0f..player.durationMs.coerceAtLeast(1).toFloat(),
-            )
-            Text(
-                "${formatMs(player.positionMs.toLong())} / ${formatMs(player.durationMs.toLong())}",
-                style = MaterialTheme.typography.labelSmall,
-            )
-        }
+        if (current && c.clipPath != null) PlaybackPanel(player, c.clipPath)
     }
 }
 

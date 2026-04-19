@@ -30,17 +30,17 @@ private fun fmtMin(minutes: Int): String = "%d:%02d".format(minutes / 60, minute
 
 private fun fmtClock(ms: Long): String = DateFormat.getTimeInstance(DateFormat.SHORT).format(Date(ms))
 
-private fun stageOrder(s: Stage) = when (s) { Stage.AWAKE -> 0; Stage.REM -> 1; Stage.LIGHT -> 2; Stage.DEEP -> 3 }
+internal fun stageOrder(s: Stage) = when (s) { Stage.AWAKE -> 0; Stage.REM -> 1; Stage.LIGHT -> 2; Stage.DEEP -> 3 }
 
 @Composable
-private fun stageColor(s: Stage): Color = when (s) {
+internal fun stageColor(s: Stage): Color = when (s) {
     Stage.AWAKE -> MaterialTheme.colorScheme.error
     Stage.REM -> MaterialTheme.colorScheme.tertiary
     Stage.LIGHT -> MaterialTheme.colorScheme.outline
     Stage.DEEP -> MaterialTheme.colorScheme.primary
 }
 
-private fun stageLabel(s: Stage) = when (s) {
+internal fun stageLabel(s: Stage) = when (s) {
     Stage.AWAKE -> R.string.stage_awake
     Stage.REM -> R.string.stage_rem
     Stage.LIGHT -> R.string.stage_light
@@ -124,7 +124,6 @@ fun SleepSection(analysis: SleepAnalysis, score: ScoreResult) {
                     )
                 )
             }
-            Hypnogram(analysis.stages)
             Text(stringResource(R.string.stage_caveat), style = MaterialTheme.typography.labelSmall, modifier = Modifier.padding(top = 4.dp))
         }
     }
@@ -151,29 +150,4 @@ private fun pct(part: Int, whole: Int) = if (whole > 0) part * 100.0 / whole els
 private fun skipReason(n: ScorePart.Name) = when (n) {
     ScorePart.Name.CONSISTENCY -> R.string.skip_consistency
     else -> R.string.skip_feeling
-}
-
-/** 睡眠曲線。縦は上から Awake / REM / Light / Deep、横は計測開始からの時間(1 分 = 1 マス)。 */
-@Composable
-private fun Hypnogram(stages: List<Stage>) {
-    val colors = Stage.entries.associateWith { stageColor(it) }
-    Column(Modifier.padding(top = 8.dp)) {
-        Canvas(Modifier.fillMaxWidth().height(120.dp)) {
-            val n = stages.size.coerceAtLeast(1)
-            val rowH = size.height / 4f
-            val colW = size.width / n
-            stages.forEachIndexed { i, s ->
-                drawRect(
-                    color = colors.getValue(s),
-                    topLeft = Offset(i * colW, stageOrder(s) * rowH + rowH * 0.1f),
-                    size = Size(colW + 0.5f, rowH * 0.8f),
-                )
-            }
-        }
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            for (s in listOf(Stage.AWAKE, Stage.REM, Stage.LIGHT, Stage.DEEP)) {
-                Text(stringResource(stageLabel(s)), color = colors.getValue(s), style = MaterialTheme.typography.labelSmall)
-            }
-        }
-    }
 }
