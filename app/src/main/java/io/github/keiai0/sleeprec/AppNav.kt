@@ -53,6 +53,7 @@ private enum class Tab(val route: String, val labelRes: Int) {
 }
 
 private const val DETAIL_ROUTE = "journal/{id}"
+private const val PERMISSIONS_ROUTE = "settings/permissions"
 
 @Composable
 fun SleepRecApp(stopRequested: Boolean, onStopRequestConsumed: () -> Unit) {
@@ -89,11 +90,12 @@ fun SleepRecApp(stopRequested: Boolean, onStopRequestConsumed: () -> Unit) {
     Scaffold(
         bottomBar = {
             // 詳細画面でもタブを出す(Journal を選択中として表示し、他のタブへすぐ移れるようにする)
-            if (!fullscreen && (currentTab != null || route == DETAIL_ROUTE)) {
+            if (!fullscreen && (currentTab != null || route == DETAIL_ROUTE || route == PERMISSIONS_ROUTE)) {
                 NavigationBar {
                     Tab.entries.forEach { tab ->
                         NavigationBarItem(
-                            selected = currentTab == tab || (route == DETAIL_ROUTE && tab == Tab.Journal),
+                            selected = currentTab == tab || (route == DETAIL_ROUTE && tab == Tab.Journal) ||
+                                (route == PERMISSIONS_ROUTE && tab == Tab.Settings),
                             onClick = { goToTab(tab) },
                             icon = { Icon(tabIcon(tab), contentDescription = null) },
                             label = { Text(stringResource(tab.labelRes)) },
@@ -105,7 +107,11 @@ fun SleepRecApp(stopRequested: Boolean, onStopRequestConsumed: () -> Unit) {
     ) { padding ->
         NavHost(nav, startDestination = Tab.Record.route, modifier = if (fullscreen) Modifier else Modifier.padding(padding)) {
             composable(Tab.Record.route) {
-                RecorderScreen(stopRequested = stopRequestedState.value, onStopRequestConsumed = { consumedState.value() })
+                RecorderScreen(
+                    stopRequested = stopRequestedState.value,
+                    onStopRequestConsumed = { consumedState.value() },
+                    onOpenAssistant = { nav.navigate(PERMISSIONS_ROUTE) },
+                )
             }
             composable(Tab.Journal.route) {
                 SessionListScreen(onOpen = { nav.navigate("journal/$it") })
@@ -114,59 +120,52 @@ fun SleepRecApp(stopRequested: Boolean, onStopRequestConsumed: () -> Unit) {
                 SessionDetailScreen(entry.arguments!!.getLong("id"), onBack = { nav.popBackStack() })
             }
             composable(Tab.Stats.route) { StatsScreen() }
-            composable(Tab.Settings.route) { SettingsScreen() }
+            composable(Tab.Settings.route) { SettingsScreen(onOpenPermissions = { nav.navigate(PERMISSIONS_ROUTE) }) }
+            composable(PERMISSIONS_ROUTE) { PermissionAssistantScreen(onBack = { nav.popBackStack() }) }
         }
     }
 }
 
-/** 設定は Phase 9 で作る。今は、デバッグビルドだけ、確認用の道具を置く。 */
+/** デバッグビルドだけの確認用の道具。数時間の実データがなくても、睡眠の推定・スコア・画面を確認できる合成データを作る。 */
 @Composable
-private fun SettingsScreen() {
-    val context = LocalContext.current
-    val store = remember { io.github.keiai0.sleeprec.data.SessionStore.create(context) }
+internal fun DebugTools(store: io.github.keiai0.sleeprec.data.SessionStore) {
     val scope = rememberCoroutineScope()
-    val debuggable = context.applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE != 0
     var busy by remember { mutableStateOf(false) }
     var message by remember { mutableStateOf<Int?>(null) }
 
-    Column(Modifier.fillMaxSize().padding(24.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text(stringResource(R.string.tab_settings), style = MaterialTheme.typography.headlineSmall)
-        Text(stringResource(R.string.placeholder_settings))
-        if (debuggable) {
-            Text(stringResource(R.string.debug_tools), style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = 16.dp))
-            // 数時間の実データがなくても、睡眠の推定・スコア・画面を確認するための合成データ(デバッグビルドのみ)
-            TextButton(enabled = !busy, onClick = {
-                busy = true
-                message = R.string.debug_creating
-                // タブを切り替えても、途中で止まって中途半端なデータが残らないようにする(NonCancellable)
-                scope.launch(Dispatchers.IO + NonCancellable) {
-                    for (i in 1..7) {
-                        // 昨日から 7 日前まで。就寝は 23:00 前後で、日ごとに数十分ずつずれる
-                        val cal = java.util.Calendar.getInstance().apply {
-                            add(java.util.Calendar.DAY_OF_YEAR, -i)
-                            set(java.util.Calendar.HOUR_OF_DAY, 23)
-                            set(java.util.Calendar.MINUTE, (i * 17) % 50)
-                            set(java.util.Calendar.SECOND, 0)
-                            set(java.util.Calendar.MILLISECOND, 0)
-                        }
-                        store.insertSyntheticNight(
-                            SyntheticNightGenerator.generate(cal.timeInMillis, durationMin = 420 + i * 10, seed = i)
-                        )
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Text(stringResource(R.string.debug_tools), style = MaterialTheme.typography.titleMedium)
+        TextButton(enabled = !busy, onClick = {
+            busy = true
+            message = R.string.debug_creating
+            // タブを切り替えても、途中で止まって中途半端なデータが残らないようにする(NonCancellable)
+            scope.launch(Dispatchers.IO + NonCancellable) {
+                for (i in 1..7) {
+                    // 昨日から 7 日前まで。就寝は 23:00 前後で、日ごとに数十分ずつずれる
+                    val cal = java.util.Calendar.getInstance().apply {
+                        add(java.util.Calendar.DAY_OF_YEAR, -i)
+                        set(java.util.Calendar.HOUR_OF_DAY, 23)
+                        set(java.util.Calendar.MINUTE, (i * 17) % 50)
+                        set(java.util.Calendar.SECOND, 0)
+                        set(java.util.Calendar.MILLISECOND, 0)
                     }
-                    busy = false
-                    message = R.string.debug_created
+                    store.insertSyntheticNight(
+                        SyntheticNightGenerator.generate(cal.timeInMillis, durationMin = 420 + i * 10, seed = i)
+                    )
                 }
-            }) { Text(stringResource(R.string.debug_create_nights)) }
-            TextButton(enabled = !busy, onClick = {
-                scope.launch(Dispatchers.IO + NonCancellable) {
-                    store.deleteSyntheticNights()
-                    message = R.string.debug_deleted
-                }
-            }) {
-                Text(stringResource(R.string.debug_delete_nights))
+                busy = false
+                message = R.string.debug_created
             }
-            message?.let { Text(stringResource(it), style = MaterialTheme.typography.labelMedium) }
+        }) { Text(stringResource(R.string.debug_create_nights)) }
+        TextButton(enabled = !busy, onClick = {
+            scope.launch(Dispatchers.IO + NonCancellable) {
+                store.deleteSyntheticNights()
+                message = R.string.debug_deleted
+            }
+        }) {
+            Text(stringResource(R.string.debug_delete_nights))
         }
+        message?.let { Text(stringResource(it), style = MaterialTheme.typography.labelMedium) }
     }
 }
 

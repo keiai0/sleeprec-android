@@ -158,7 +158,7 @@ private fun periodLabel(p: StatsPeriod): String = when (p.kind) {
 @Composable
 fun StatsContent(period: StatsPeriod, stats: PeriodStats) {
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        val goalMin = (Thresholds.GOAL_SLEEP_MS / 60_000).toInt()
+        val goalMin = AppSettings.state.value.goalSleepMin
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             StatCard(stringResource(R.string.stat_avg_sleep), stats.avgTstMin?.let { fmtHM(it) } ?: "-", stringResource(R.string.stat_goal, fmtHM(goalMin)), Modifier.weight(1f))
             StatCard(

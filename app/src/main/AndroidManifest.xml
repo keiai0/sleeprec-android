@@ -26,7 +26,8 @@
         <activity
             android:name=".MainActivity"
             android:exported="true"
-            android:launchMode="singleTop">
+            android:launchMode="singleTop"
+            android:screenOrientation="portrait">
             <!-- ランチャーから起動できるようにする「入口」の宣言 -->
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />

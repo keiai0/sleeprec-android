@@ -73,19 +73,26 @@ class MainActivity : ComponentActivity() {
         SessionPolicy.configure(this)
         stopRequested = intent?.getBooleanExtra(EXTRA_REQUEST_STOP, false) == true
         ScreenModeState.init(this)
+        AppSettings.init(this)
         enableEdgeToEdge(
             statusBarStyle = SystemBarStyle.dark(android.graphics.Color.TRANSPARENT),
             navigationBarStyle = SystemBarStyle.dark(android.graphics.Color.TRANSPARENT),
         )
         setContent {
             SleepRecTheme {
-                SleepRecApp(
-                    stopRequested = stopRequested,
-                    onStopRequestConsumed = {
-                        stopRequested = false
-                        intent?.removeExtra(EXTRA_REQUEST_STOP) // 画面の作り直しで、ダイアログが再表示されないように
-                    },
-                )
+                // 初回だけ、質問の画面を出す。済んだ(または、あとで設定するにした)ら、通常の画面へ
+                val onboardingDone = AppSettings.state.collectAsState().value.onboardingDone
+                if (onboardingDone) {
+                    SleepRecApp(
+                        stopRequested = stopRequested,
+                        onStopRequestConsumed = {
+                            stopRequested = false
+                            intent?.removeExtra(EXTRA_REQUEST_STOP) // 画面の作り直しで、ダイアログが再表示されないように
+                        },
+                    )
+                } else {
+                    OnboardingScreen()
+                }
             }
         }
     }
@@ -101,7 +108,7 @@ class MainActivity : ComponentActivity() {
 private enum class PermissionUi { None, Denied, PermanentlyDenied }
 
 @Composable
-internal fun RecorderScreen(stopRequested: Boolean, onStopRequestConsumed: () -> Unit) {
+internal fun RecorderScreen(stopRequested: Boolean, onStopRequestConsumed: () -> Unit, onOpenAssistant: () -> Unit) {
     val context = LocalContext.current
     val activity = context as Activity
     val scope = rememberCoroutineScope()
@@ -271,7 +278,7 @@ internal fun RecorderScreen(stopRequested: Boolean, onStopRequestConsumed: () ->
             ) {
                 HomeHeader()
                 ScreenModeSelector(screenMode) { ScreenModeState.set(context, it) }
-                PreflightChecklist(deviceStatus)
+                PreflightChecklist(deviceStatus, AppSettings.state.collectAsState().value.backgroundSetupDone, onOpenAssistant)
                 TagEditor(tags, { tags = it }, memo, { memo = it }, recentTags)
             }
             Column(Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
@@ -353,12 +360,13 @@ private fun HomeHeader() {
         }
     }
     val fmt = remember { DateFormat.getTimeInstance(DateFormat.SHORT) }
-    val goalMin = (Thresholds.GOAL_SLEEP_MS / 60_000).toInt()
+    val settings by AppSettings.state.collectAsState()
+    val goalMin = settings.goalSleepMin
     Column(Modifier.fillMaxWidth()) {
         Text(stringResource(R.string.state_stopped), style = MaterialTheme.typography.titleMedium)
         Text(fmt.format(Date(now)), style = MaterialTheme.typography.displayMedium)
         Text(
-            stringResource(R.string.home_wake_hint, goalMin / 60, goalMin % 60, fmt.format(Date(now + Thresholds.GOAL_SLEEP_MS))),
+            stringResource(R.string.home_wake_hint, goalMin / 60, goalMin % 60, fmt.format(Date(now + settings.goalSleepMs))),
             style = MaterialTheme.typography.bodyMedium,
         )
     }

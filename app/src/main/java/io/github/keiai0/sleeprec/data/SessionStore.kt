@@ -193,6 +193,13 @@ class SessionStore(
         return true
     }
 
+    /** すべての記録を削除する(FR-8.6)。計測中のものは含まない(サービスが使っているため)。消した件数を返す。 */
+    suspend fun deleteAllSessions(): Int {
+        val all = dao.finished()
+        all.forEach { discard(it) }
+        return all.size
+    }
+
     private suspend fun discard(s: Session) {
         File(s.wavPath).delete()
         apneaDao.clipPaths(s.id).forEach { File(it).delete() }

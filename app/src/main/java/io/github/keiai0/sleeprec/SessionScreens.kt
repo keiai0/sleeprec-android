@@ -23,6 +23,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -216,10 +217,11 @@ fun SessionDetailScreen(sessionId: Long, onBack: () -> Unit) {
                 val analysis = remember(s, events, pauses) {
                     SleepAnalyzer.analyze(s.startedAt, s.endedAt ?: s.lastAliveAt, events, pauses.map { it.startedAt to it.endedAt })
                 }
-                val score = remember(analysis, previousNights, s.mood) {
+                val goalMs = AppSettings.state.collectAsState().value.goalSleepMs
+                val score = remember(analysis, previousNights, s.mood, goalMs) {
                     val nights = (previousNights + s).filter { it.status == SessionStatus.COMPLETED }
                         .map { NightTimes(it.startedAt, it.endedAt ?: it.lastAliveAt) }
-                    SleepScore.compute(s.status, analysis.metrics, nights, mood = s.mood)
+                    SleepScore.compute(s.status, analysis.metrics, nights, mood = s.mood, goalMs = goalMs)
                 }
                 SleepSection(analysis, score)
                 Text(stringResource(R.string.timeline_title), style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = 8.dp, bottom = 4.dp))

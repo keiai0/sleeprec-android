@@ -45,7 +45,7 @@ object Thresholds {
     const val REM_GROWTH_PER_CYCLE = 0.06
 
     // --- 睡眠スコア(RESEARCH.md §A-3)。配点・閾値は実データで調整する ---
-    const val GOAL_SLEEP_MS = 450L * 60_000 // 目標睡眠時間の既定(7.5 時間)。設定画面ができるまで固定
+    const val GOAL_SLEEP_MS = 450L * 60_000 // 目標睡眠時間の既定(7.5 時間)。実際の値は、設定(AppSettings)で変えられる
     const val SCORE_MIN_TST_MS = 4L * 60 * 60_000 // これ未満はスコアを出さない
     const val DURATION_FULL_UPPER_MS = 9L * 60 * 60_000 // これを超えると、緩やかに減点
     const val SCORE_DURATION = 40

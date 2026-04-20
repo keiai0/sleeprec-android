@@ -8,9 +8,10 @@ import java.util.TimeZone
 object StatsLoader {
     suspend fun load(store: SessionStore, period: StatsPeriod): List<NightSummary> {
         val zone = TimeZone.getDefault()
+        val settings = AppSettings.state.value
         return store.finishedSessions()
             .filter { it.status == SessionStatus.COMPLETED }
-            .filter { NightDay.of(it.startedAt, zone.getOffset(it.startedAt).toLong()) in period }
+            .filter { NightDay.of(it.startedAt, zone.getOffset(it.startedAt).toLong(), settings.dayCutoffHour) in period }
             .sortedBy { it.startedAt }
             .map { s ->
                 val end = s.endedAt ?: s.lastAliveAt
@@ -20,11 +21,11 @@ object StatsLoader {
                 // 規則性(Consistency)は、この夜より前の記録も使う
                 val nights = (store.recentCompleted(s.startedAt, Thresholds.CONSISTENCY_NIGHTS - 1) + s)
                     .map { NightTimes(it.startedAt, it.endedAt ?: it.lastAliveAt) }
-                val score = SleepScore.compute(s.status, analysis.metrics, nights, s.mood).total
+                val score = SleepScore.compute(s.status, analysis.metrics, nights, s.mood, settings.goalSleepMs).total
                 val snore = SnoreSummary.of(events)
                 val offset = zone.getOffset(s.startedAt).toLong()
                 NightSummary(
-                    day = NightDay.of(s.startedAt, offset),
+                    day = NightDay.of(s.startedAt, offset, settings.dayCutoffHour),
                     bedAt = s.startedAt,
                     wakeAt = end,
                     zoneOffsetMs = offset,

@@ -119,7 +119,7 @@ private fun CheckRow(mark: Mark, text: String, actionLabel: String? = null, onAc
  * 状態を表す記号と文章の両方で示す(色だけに頼らない)。
  */
 @Composable
-fun PreflightChecklist(status: DeviceStatus) {
+fun PreflightChecklist(status: DeviceStatus, backgroundSetupDone: Boolean, onOpenAssistant: () -> Unit) {
     val context = LocalContext.current
     Column(Modifier.fillMaxWidth()) {
         Text(stringResource(R.string.preflight_title), style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(bottom = 4.dp))
@@ -158,6 +158,12 @@ fun PreflightChecklist(status: DeviceStatus) {
                 // 「除外」を直接求める Intent は Play の制限対象なので、除外を設定できる一覧の画面を開く
                 context.startActivity(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS))
             }
+        }
+        // メーカー独自のバックグラウンド動作の設定は、端末から判定できない。済ませたと申告されるまで、案内を出す
+        if (backgroundSetupDone) {
+            CheckRow(Mark.OK, stringResource(R.string.pf_background_done))
+        } else {
+            CheckRow(Mark.WARNING, stringResource(R.string.pf_background_todo), stringResource(R.string.pf_open_assistant), onOpenAssistant)
         }
         CheckRow(
             if (status.micGranted) Mark.OK else Mark.INFO,

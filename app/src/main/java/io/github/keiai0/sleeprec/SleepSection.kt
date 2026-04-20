@@ -112,10 +112,11 @@ fun SleepSection(analysis: SleepAnalysis, score: ScoreResult) {
                 Text(stringResource(R.string.metric_tst, fmtMin(m.tstMin), fmtMin(m.timeInBedMin)))
                 Text(stringResource(R.string.metric_latency_efficiency, m.latencyMin, m.efficiency * 100))
                 Text(stringResource(R.string.metric_waso, m.wasoMin, m.wakeCount))
-                val debt = (Thresholds.GOAL_SLEEP_MS / 60_000).toInt() - m.tstMin
+                val goalMin = AppSettings.state.value.goalSleepMin
+                val debt = goalMin - m.tstMin
                 Text(
-                    if (debt > 0) stringResource(R.string.metric_debt, fmtMin(debt), fmtMin((Thresholds.GOAL_SLEEP_MS / 60_000).toInt()))
-                    else stringResource(R.string.metric_debt_none, fmtMin((Thresholds.GOAL_SLEEP_MS / 60_000).toInt()))
+                    if (debt > 0) stringResource(R.string.metric_debt, fmtMin(debt), fmtMin(goalMin))
+                    else stringResource(R.string.metric_debt_none, fmtMin(goalMin))
                 )
                 Text(
                     stringResource(
