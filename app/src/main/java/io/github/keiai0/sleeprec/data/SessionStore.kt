@@ -182,6 +182,17 @@ class SessionStore(
         )
     }
 
+    /**
+     * 記録を丸ごと削除する(FR-5.4)。WAV・クリップの音声ファイルと、音量・イベント・タグなどの行をすべて消す。
+     * 計測中の記録は消さない(サービスが使っているため)。消せたら true。
+     */
+    suspend fun deleteSession(id: Long): Boolean {
+        val s = dao.get(id) ?: return false
+        if (s.status == SessionStatus.RECORDING) return false
+        discard(s)
+        return true
+    }
+
     private suspend fun discard(s: Session) {
         File(s.wavPath).delete()
         apneaDao.clipPaths(s.id).forEach { File(it).delete() }

@@ -97,9 +97,38 @@
     <string name="tab_journal">記録</string>
     <string name="tab_stats">統計</string>
     <string name="tab_settings">設定</string>
-    <string name="placeholder_stats">週・月の集計は、今後のバージョンで追加します。</string>
     <string name="placeholder_settings">目標睡眠時間や権限の案内などは、今後のバージョンで追加します。</string>
     <string name="debug_tools">デバッグ用</string>
+
+    <!-- 統計(FR-5.1、5.2) -->
+    <string name="period_week">週</string>
+    <string name="period_month">月</string>
+    <string name="period_prev">← 前へ</string>
+    <string name="period_next">次へ →</string>
+    <string name="export_menu">画像として書き出す</string>
+    <string name="export_save_image">画像を端末に保存</string>
+    <string name="export_share_image">画像を共有</string>
+    <string name="export_image_title">%1$s の睡眠</string>
+    <string name="export_image_saved">「ピクチャ」フォルダの「SleepRec」に保存しました。</string>
+    <string name="stats_empty">この期間に、30 分以上の記録はありません。</string>
+    <string name="stats_note">30 分以上の通常の記録のうち、入眠できた夜だけを集計しています。夜の記録は、朝の日付の記録として数えます。日ごとの詳細は「記録」タブで見られます。</string>
+    <string name="stat_avg_sleep">平均睡眠時間</string>
+    <string name="stat_goal">目標 %1$s</string>
+    <string name="stat_avg_score">平均スコア</string>
+    <string name="stat_no_score">スコアなし</string>
+    <string name="stat_avg_bed">平均就寝</string>
+    <string name="stat_avg_wake">平均起床</string>
+    <string name="stat_avg_snore">平均いびき</string>
+    <string name="stat_snore_value">%1$.1f 回</string>
+    <string name="stat_snore_time">1 晩あたり・平均 %1$s</string>
+    <string name="stat_max_db">最大音量</string>
+    <string name="stat_max_db_note">dBFS(端末による相対値)</string>
+    <string name="stat_nights">記録した夜</string>
+    <string name="stat_nights_value">%1$d / %2$d 日</string>
+    <string name="stat_efficiency">平均睡眠効率</string>
+    <string name="chart_sleep_title">睡眠時間(時間)</string>
+    <string name="chart_score_title">スコア</string>
+    <string name="chart_goal_label">目標</string>
 
     <!-- 記録一覧・再生 -->
     <string name="button_history">記録一覧</string>
@@ -133,6 +162,10 @@
     <string name="pause">一時停止</string>
     <string name="delete">削除</string>
     <string name="cancel">キャンセル</string>
+    <string name="session_delete">この記録を削除</string>
+    <string name="session_delete_title">この記録を削除しますか？</string>
+    <string name="session_delete_body">この記録の音声、音量、イベント、スコアなど、すべてが削除されます。元に戻せません。</string>
+    <string name="session_delete_confirm">削除する</string>
     <string name="delete_title">このイベントを削除しますか？</string>
     <string name="delete_body">音声とイベントの記録が削除されます。元に戻せません。</string>
 

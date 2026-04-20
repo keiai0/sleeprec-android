@@ -126,6 +126,7 @@ fun SessionDetailScreen(sessionId: Long, onBack: () -> Unit) {
     var tags by remember { mutableStateOf<List<String>>(emptyList()) }
     var pauses by remember { mutableStateOf<List<SessionPause>>(emptyList()) }
     var editingMood by remember { mutableStateOf(false) }
+    var deletingSession by remember { mutableStateOf(false) }
     var deleting by remember { mutableStateOf<AudioEvent?>(null) }
     var retyping by remember { mutableStateOf<AudioEvent?>(null) }
 
@@ -174,7 +175,15 @@ fun SessionDetailScreen(sessionId: Long, onBack: () -> Unit) {
     val totalMs = maxOf(sessionEndMs(s), (samples.maxOfOrNull { it.second } ?: 0) * 1000L + 1000L)
 
     Column(Modifier.fillMaxSize().padding(16.dp)) {
-        TextButton(onClick = onBack) { Text(stringResource(R.string.back)) }
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+            TextButton(onClick = onBack) { Text(stringResource(R.string.back)) }
+            // 計測中の記録は消せない(計測画面から終了する)
+            if (s.status != SessionStatus.RECORDING) {
+                TextButton(onClick = { deletingSession = true }) {
+                    Text(stringResource(R.string.session_delete), color = MaterialTheme.colorScheme.error)
+                }
+            }
+        }
         // 見出し・グラフ・クリップ一覧を 1 つのリストにして、画面全体をスクロールできるようにする
         LazyColumn {
             item {
@@ -293,6 +302,25 @@ fun SessionDetailScreen(sessionId: Long, onBack: () -> Unit) {
                 }
             },
             onDismiss = { retyping = null },
+        )
+    }
+
+    if (deletingSession) {
+        AlertDialog(
+            onDismissRequest = { deletingSession = false },
+            title = { Text(stringResource(R.string.session_delete_title)) },
+            text = { Text(stringResource(R.string.session_delete_body)) },
+            confirmButton = {
+                TextButton(onClick = {
+                    deletingSession = false
+                    player.stop()
+                    scope.launch {
+                        withContext(Dispatchers.IO) { store.deleteSession(sessionId) }
+                        onBack()
+                    }
+                }) { Text(stringResource(R.string.session_delete_confirm), color = MaterialTheme.colorScheme.error) }
+            },
+            dismissButton = { TextButton(onClick = { deletingSession = false }) { Text(stringResource(R.string.cancel)) } },
         )
     }
 

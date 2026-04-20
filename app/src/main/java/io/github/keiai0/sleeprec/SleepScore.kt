@@ -105,14 +105,8 @@ object SleepScore {
         return (f(bedSd) + f(wakeSd)) / 2
     }
 
-    // 「正午からの経過分」にして、真夜中をまたぐ就寝時刻(23:30 と 00:30 など)を連続した値として扱う
-    private fun minutesFromNoon(epochMs: Long, zone: java.util.TimeZone = java.util.TimeZone.getDefault()): Double {
-        val local = epochMs + zone.getOffset(epochMs)
-        val minOfDay = ((local % DAY_MS) + DAY_MS) % DAY_MS / 60_000.0
-        return (minOfDay - 720 + 1440) % 1440
-    }
-
-    private const val DAY_MS = 24L * 60 * 60_000
+    private fun minutesFromNoon(epochMs: Long): Double =
+        TimeMath.minutesFromNoon(epochMs, java.util.TimeZone.getDefault().getOffset(epochMs).toLong())
 
     private fun sd(xs: List<Double>): Double {
         val mean = xs.average()

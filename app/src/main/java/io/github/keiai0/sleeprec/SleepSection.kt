@@ -54,7 +54,7 @@ private fun partLabel(n: ScorePart.Name) = when (n) {
     ScorePart.Name.FEELING -> R.string.part_feeling
 }
 
-private fun bandLabel(b: ScoreBand) = when (b) {
+internal fun bandLabel(b: ScoreBand) = when (b) {
     ScoreBand.EXCELLENT -> R.string.band_excellent
     ScoreBand.PRETTY_GOOD -> R.string.band_pretty_good
     ScoreBand.FAIR -> R.string.band_fair

@@ -2,4 +2,6 @@
 <!-- 他のアプリへ共有できるのは、クリップ(clips/)だけ。全録音や DB は共有できない -->
 <paths>
     <external-files-path name="clips" path="clips/" />
+    <!-- 統計の画像を共有するときの一時ファイル -->
+    <cache-path name="share" path="share/" />
 </paths>

@@ -113,18 +113,9 @@ fun SleepRecApp(stopRequested: Boolean, onStopRequestConsumed: () -> Unit) {
             composable(DETAIL_ROUTE, arguments = listOf(navArgument("id") { type = NavType.LongType })) { entry ->
                 SessionDetailScreen(entry.arguments!!.getLong("id"), onBack = { nav.popBackStack() })
             }
-            composable(Tab.Stats.route) { PlaceholderScreen(R.string.tab_stats, R.string.placeholder_stats) }
+            composable(Tab.Stats.route) { StatsScreen() }
             composable(Tab.Settings.route) { SettingsScreen() }
         }
-    }
-}
-
-/** 統計は Phase 8 で作る。それまでは、予定だけを表示する。 */
-@Composable
-private fun PlaceholderScreen(titleRes: Int, messageRes: Int) {
-    Column(Modifier.fillMaxSize().padding(24.dp), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(stringResource(titleRes), style = MaterialTheme.typography.headlineSmall)
-        Text(stringResource(messageRes), modifier = Modifier.padding(top = 8.dp))
     }
 }
 

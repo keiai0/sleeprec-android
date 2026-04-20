@@ -62,6 +62,9 @@ object Thresholds {
     const val SNORE_LOUD_DB = -25f       // これ以上で「大きい」
     const val SNORE_VERY_LOUD_DB = -15f  // これ以上で「非常に大きい」
 
+    // --- 統計(Phase 8) ---
+    const val DAY_CUTOFF_HOUR = 15 // 「日の区切り」の時刻。夜の記録は、この時刻をまたいだ翌朝の日付に数える(Phase 9 で設定にする)
+
     // --- 保持ポリシー(PLAN §6 #6) ---
     const val MAX_CLIPS_PER_SESSION = 20 // 1晩に音声を残す数。超えた分は最大 dB の大きい順に残す
     const val AUDIO_RETENTION_DAYS = 7L  // 音声(クリップ、全録音)を自動削除するまでの日数
