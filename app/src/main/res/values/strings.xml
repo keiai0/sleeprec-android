@@ -23,11 +23,11 @@
     <!-- 画面モード・一時停止・終了(6-3) -->
     <string name="mode_title">計測中の画面</string>
     <string name="mode_auto_lock">自動ロック</string>
-    <string name="mode_auto_lock_desc">端末の設定どおりに画面が消えます。電池に一番やさしい設定です。</string>
+    <string name="mode_auto_lock_desc">画面は端末の設定で消灯</string>
     <string name="mode_dark_clock">時計付きで暗く</string>
-    <string name="mode_dark_clock_desc">画面をごく暗くして、時刻と経過時間だけを表示します。夜中に時刻を確かめられます。</string>
+    <string name="mode_dark_clock_desc">暗い画面に時刻と経過時間</string>
     <string name="mode_dark_off">完全に暗く</string>
-    <string name="mode_dark_off_desc">ほぼ真っ暗にして、何も表示しません。画面に触れると、操作ボタンが数秒だけ現れます。</string>
+    <string name="mode_dark_off_desc">ほぼ真っ暗。触れると操作</string>
     <string name="state_paused">一時停止中</string>
     <string name="paused_note">一時停止している間は、音を録音していません。この間は、起きていた時間として扱います。</string>
     <string name="action_pause">一時停止</string>
@@ -60,6 +60,21 @@
 
     <!-- 開始前の確認(FR-2.4)・睡眠前のタグとメモ(FR-2.10) -->
     <string name="preflight_title">開始前の確認</string>
+    <string name="pf_battery_title">電池 %1$d%%</string>
+    <string name="pf_battery_sub_charging">充電中</string>
+    <string name="pf_battery_sub_ok">充電していません</string>
+    <string name="pf_battery_sub_low">50%未満。充電をお勧め</string>
+    <string name="pf_battery_sub_very_low">30%未満。切れるおそれ</string>
+    <string name="pf_notifications_sub">経過時間が通知に出ません</string>
+    <string name="pf_open_settings">設定を開く</string>
+    <string name="pf_battery_opt_sub_ok">除外済み</string>
+    <string name="pf_battery_opt_sub_ng">対象。夜間に止められることも</string>
+    <string name="pf_background_title">バックグラウンド動作</string>
+    <string name="pf_background_sub_ok">確認済み</string>
+    <string name="pf_background_sub_ng">未確認。夜間に止められることも</string>
+    <string name="pf_mic_sub">開始するときに許可を求めます</string>
+    <string name="pf_placement_summary">置き場所: 枕元・胸の高さ</string>
+    <string name="pf_placement_detail">枕元のテーブルなどに、胸の高さを目安に置き、マイクを体に向けてください。布団や枕に埋めないでください。</string>
     <string name="pf_battery_ok">電池残量 %1$d%%</string>
     <string name="pf_battery_charging">電池残量 %1$d%%(充電中)</string>
     <string name="pf_battery_low">電池残量 %1$d%%。50%%未満です。充電しながらの計測をお勧めします。</string>
@@ -75,9 +90,11 @@
     <string name="pf_open_battery_settings">バッテリー最適化の設定を開く</string>
     <string name="pf_mic_ok">マイクは許可されています。</string>
     <string name="pf_mic_ask">開始するときに、マイクの許可を求めます。</string>
-    <string name="home_wake_hint">今すぐ寝ると、目標の %1$d 時間 %2$d 分で %3$s ごろに起きられます。</string>
+    <string name="home_goal_label">目標睡眠時間</string>
+    <string name="home_wake_label">今寝ると起床は</string>
+    <string name="home_wake_hint">目標 %1$d 時間 %2$d 分で寝ると、%3$s ごろに起床</string>
     <string name="tags_title">睡眠前のタグとメモ</string>
-    <string name="tags_hint">お酒、運動、コーヒーなど、今夜の睡眠に影響しそうなことを残せます。タグは 20 文字まで、同じタグは付けられません。</string>
+    <string name="tags_hint">お酒・運動など、今夜の睡眠に影響しそうなこと</string>
     <string name="tag_input_label">タグを追加</string>
     <string name="tag_add">追加</string>
     <string name="tag_counter">%1$d / %2$d 文字</string>
@@ -91,6 +108,117 @@
     <string name="memo_counter">%1$d / %2$d 文字</string>
     <string name="detail_tags">タグ: %1$s</string>
     <string name="detail_memo">メモ: %1$s</string>
+
+    <!-- 共通の部品 -->
+    <string name="note_more">詳しく</string>
+    <string name="note_less">閉じる</string>
+    <string name="status_ok">OK</string>
+    <string name="status_check">要確認</string>
+    <string name="status_info">参考</string>
+
+    <string name="score_title">睡眠スコア</string>
+
+    <string name="part_points">%1$.1f / %2$d 点</string>
+
+    <string name="score_skipped">計算から除外: %1$s</string>
+
+    <string name="explain_duration">40 点。総睡眠時間で決まります。4 時間以下は 0 点、目標に近づくほど増え、目標〜9 時間で満点です。</string>
+
+    <string name="explain_restoration">30 点。睡眠の途切れにくさです。睡眠効率、入眠後の覚醒時間、5 分以上の中途覚醒の回数、入眠潜時から計算します(米国睡眠財団の基準)。</string>
+
+    <string name="explain_consistency">20 点。直近 7 夜の就寝・起床時刻のばらつきです。3 夜未満のときは除きます。</string>
+
+    <string name="explain_feeling">10 点。起床時の気分(1〜5)です。未入力のときは除きます。</string>
+
+    <string name="explain_footer">データのない要素は除き、残りを 100 点に換算します。配点と基準は暫定値で、医療用の評価ではありません。</string>
+
+    <string name="metrics_title">睡眠の指標</string>
+
+    <string name="metrics_none">入眠が見つからなかったため、指標はありません</string>
+
+    <string name="metric_tst_label">総睡眠時間</string>
+
+    <string name="metric_tib">ベッドで %1$s</string>
+
+    <string name="metric_eff_label">睡眠効率</string>
+
+    <string name="metric_onset_label">入眠</string>
+
+    <string name="metric_wake_label">起床</string>
+
+    <string name="metric_latency_label">入眠潜時</string>
+
+    <string name="metric_minutes">%1$d 分</string>
+
+    <string name="metric_wakes_label">中途覚醒</string>
+
+    <string name="metric_times">%1$d 回</string>
+
+    <string name="metric_wakes_sub">5 分以上</string>
+
+    <string name="metric_waso_label">入眠後の覚醒</string>
+
+    <string name="metric_debt_label">睡眠負債</string>
+
+    <string name="metric_debt_zero">なし</string>
+
+    <string name="metric_goal">目標 %1$s</string>
+
+    <string name="stage_share_title">睡眠の内訳(推定)</string>
+
+    <string name="stage_share_item">%1$s %2$d%%</string>
+
+    <string name="stage_caveat_summary">音だけからの目安です</string>
+
+    <string name="list_row_duration">計測 %1$s</string>
+
+    <string name="list_row_events">音声イベント %1$d 件</string>
+
+    <string name="overview_duration">計測時間</string>
+
+    <string name="overview_mood">起床時の気分</string>
+
+    <string name="overview_none">未入力</string>
+
+    <string name="overview_tags">タグ</string>
+
+    <string name="overview_memo">メモ</string>
+
+    <string name="overview_pauses">一時停止</string>
+
+    <string name="overview_pauses_value">%1$d 回・合計 %2$s</string>
+
+    <string name="timeline_hint_summary">タップで、その時刻の音を再生</string>
+
+    <string name="snore_count_label">回数</string>
+
+    <string name="snore_total_label">合計時間</string>
+
+    <string name="snore_db_label">音量(最大 / 平均)</string>
+
+    <string name="snore_level_title">強度ごとの回数</string>
+
+    <string name="snore_times_line">発生時刻: %1$s</string>
+
+    <string name="snore_note_summary">強度は、マイクの感度による目安です</string>
+
+    <string name="snore_note_detail">最大の音量(dBFS)で、静か・軽い・大きい・非常に大きい、に分けています。端末のマイクの感度で値が変わるため、他の端末とは比べられません。</string>
+
+    <string name="apnea_count_label">候補</string>
+
+    <string name="apnea_silence_label">無音(最大 / 合計)</string>
+
+    <string name="apnea_rate_label">1 時間あたり</string>
+
+    <string name="apnea_rate_value">%1$.1f 回</string>
+
+    <string name="apnea_risk_pill">相談の目安</string>
+
+    <string name="apnea_disclaimer_summary">診断ではなく、いびき後の無音による目安です</string>
+
+    <string name="apnea_row_pill">無音 %1$s</string>
+
+    <string name="type_corrected_short">修正済み</string>
 
     <!-- 下部タブ -->
     <string name="tab_record">計測</string>
@@ -200,7 +328,7 @@
     <string name="pa_background_caveat">この設定は、アプリから状態を確認できません。手順どおりに設定したら、チェックを付けてください。手順は、端末や OS のバージョンで項目名が異なることがあります。</string>
     <string name="pf_background_todo">バックグラウンド動作の設定を確認していません。端末によっては、夜間に計測が止められる原因になります。</string>
     <string name="pf_background_done">バックグラウンド動作の設定は、確認済みです。</string>
-    <string name="pf_open_assistant">権限アシスタントを開く</string>
+    <string name="pf_open_assistant">アシスタントを開く</string>
     <string name="vendor_coloros">OPPO / realme / OnePlus(ColorOS など)</string>
     <string name="vendor_xiaomi">Xiaomi / Redmi / POCO</string>
     <string name="vendor_huawei">HUAWEI / HONOR</string>
@@ -264,7 +392,7 @@
     <string name="marker_apnea">無呼吸の候補</string>
     <string name="clips_title">音声イベント(%1$d 件)</string>
     <string name="clips_empty">音声イベントはありません。</string>
-    <string name="clip_detail">長さ %1$s ・ 最大 %2$.1f dBFS ・ 開始から %3$s</string>
+    <string name="clip_detail">%1$s ・ 最大 %2$.1f dBFS</string>
     <string name="audio_deleted">音声は削除済み</string>
     <string name="menu_more">操作</string>
     <string name="menu_save">端末に保存</string>
@@ -310,10 +438,10 @@
     <string name="sleep_title">睡眠</string>
     <string name="score_out_of">/ 100</string>
     <string name="no_score">スコアなし</string>
-    <string name="no_score_short">短時間睡眠(30 分未満)の記録は、スコアの対象外です。</string>
-    <string name="no_score_interrupted">中断された記録は、データが不正確な可能性があるため、スコアの対象外です。</string>
-    <string name="no_score_too_short">総睡眠時間が 4 時間未満のため、スコアを出しません。</string>
-    <string name="no_score_no_sleep">入眠(10 分以上の静かな時間)が見つからなかったため、スコアを出しません。</string>
+    <string name="no_score_short">短時間睡眠は、スコアの対象外です</string>
+    <string name="no_score_interrupted">中断された記録は、対象外です</string>
+    <string name="no_score_too_short">総睡眠時間が 4 時間未満です</string>
+    <string name="no_score_no_sleep">入眠が見つかりませんでした</string>
     <string name="score_explain_button">スコアの算出方法</string>
     <string name="band_excellent">とても良い</string>
     <string name="band_pretty_good">良い</string>
@@ -325,8 +453,8 @@
     <string name="part_feeling">気分</string>
     <string name="part_row">%1$s: %2$.1f / %3$d 点</string>
     <string name="part_skipped">%1$s: %2$s</string>
-    <string name="skip_consistency">3 夜未満のため、除いて計算しています</string>
-    <string name="skip_feeling">起床時の気分が未入力のため、除いて計算しています</string>
+    <string name="skip_consistency">規則性(3 夜未満)</string>
+    <string name="skip_feeling">気分(未入力)</string>
     <string name="metric_bed_wake">入眠 %1$s → 起床 %2$s</string>
     <string name="metric_tst">総睡眠時間 %1$s(ベッドにいた時間 %2$s)</string>
     <string name="metric_latency_efficiency">入眠潜時 %1$d 分 ・ 睡眠効率 %2$.0f%%</string>
@@ -338,7 +466,7 @@
     <string name="stage_rem">REM</string>
     <string name="stage_light">浅い</string>
     <string name="stage_deep">深い</string>
-    <string name="stage_caveat">マイクの音だけからの大まかな推定です。静かに起きていても「睡眠」になり、深い睡眠・REM は 90 分周期という一般的な傾向に沿った目安で、実際の睡眠ステージとは異なります。</string>
+    <string name="stage_caveat">マイクの音だけからの推定です。静かに起きていても「睡眠」になり、深い睡眠・REM は 90 分周期という一般的な傾向に沿った目安で、実際の睡眠ステージとは異なります。</string>
     <string name="explain_title">スコアの算出方法</string>
     <string name="explain_reason">この記録: %1$s</string>
     <string name="explain_body">合計 100 点です。\n\n・睡眠時間(40 点): 総睡眠時間。4 時間以下は 0 点、目標(7.5 時間)まで直線的に増え、目標〜9 時間は満点。9 時間を超えると少し減点します。\n\n・睡眠の連続性(30 点): 睡眠の途切れにくさ。睡眠効率(85%以上で満点、74%以下で 0)、入眠後の覚醒時間(20 分以下で満点、51 分以上で 0)、5 分以上の中途覚醒の回数(0〜1 回で満点、4 回以上で 0)、入眠潜時(30 分以下で満点、46 分以上で 0)の重み付き平均です。基準は米国睡眠財団(NSF)の合意によります。\n\n・規則性(20 点): 直近 7 夜の就寝・起床時刻のばらつき。ばらつきが 30 分以下で満点、90 分以上で 0。3 夜未満は除いて計算します。\n\n・気分(10 点): 起床時の気分(1〜5)。未入力の場合は除いて計算します。\n\nデータが足りない要素は除き、残りを 100 点に換算します。スコアは、短時間睡眠、中断された記録、総睡眠時間が 4 時間未満の記録では出しません。\n\n配点と基準は暫定値で、今後、実際のデータを見て調整します。医療用の評価ではありません。</string>
@@ -350,17 +478,17 @@
 
     <!-- 無呼吸の目安 -->
     <string name="apnea_title">無呼吸の目安</string>
-    <string name="apnea_none">いびきの後の長い無音は見つかりませんでした。</string>
+    <string name="apnea_none">いびきの後の長い無音は見つかりませんでした</string>
     <string name="apnea_count">候補 %1$d 回 ・ 最大 %2$s ・ 合計 %3$s(無音の長さ)</string>
     <string name="apnea_rate">1 時間あたり %1$.1f 回(%2$s)</string>
-    <string name="apnea_short_session">計測が 1 時間未満のため、1 時間あたりの回数と重症度は出しません。</string>
-    <string name="apnea_risk">無音の候補が多く見られました。気になる場合は、医師や専門機関に相談してください。</string>
-    <string name="apnea_disclaimer">これは診断ではなく、いびきの後に 10 秒以上の無音が続いたことによる目安です。寝返りや環境音でも候補になることがあります。</string>
+    <string name="apnea_short_session">1 時間未満の計測のため、回数と重症度は出しません</string>
+    <string name="apnea_risk">候補が多く見られました。気になる場合は、医師などに相談してください。</string>
+    <string name="apnea_disclaimer">いびきの後に 10 秒以上の無音が続いたことによる目安です。寝返りや環境音でも候補になることがあります。</string>
     <string name="level_normal">正常範囲</string>
     <string name="level_mild">軽度の目安</string>
     <string name="level_moderate">中等度の目安</string>
     <string name="level_severe">重度の目安</string>
-    <string name="apnea_clips_title">無呼吸の候補(%1$d 件)</string>
+    <string name="apnea_clips_title">候補のクリップ(%1$d 件)</string>
     <string name="apnea_row_detail">無音 %1$s(前後の音を含めて再生します)</string>
 
     <!-- 権限 -->

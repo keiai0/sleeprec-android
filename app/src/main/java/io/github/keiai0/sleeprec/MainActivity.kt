@@ -273,15 +273,15 @@ internal fun RecorderScreen(stopRequested: Boolean, onStopRequestConsumed: () ->
         // 停止中: 確認事項とタグをスクロールで見られるようにし、開始ボタンは常に下に出しておく
         Column(Modifier.fillMaxSize()) {
             Column(
-                Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 24.dp, vertical = 16.dp),
-                verticalArrangement = Arrangement.spacedBy(20.dp),
+                Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = Spacing.screen, vertical = Spacing.screen),
+                verticalArrangement = Arrangement.spacedBy(Spacing.cards),
             ) {
                 HomeHeader()
-                ScreenModeSelector(screenMode) { ScreenModeState.set(context, it) }
                 PreflightChecklist(deviceStatus, AppSettings.state.collectAsState().value.backgroundSetupDone, onOpenAssistant)
+                ScreenModeSelector(screenMode) { ScreenModeState.set(context, it) }
                 TagEditor(tags, { tags = it }, memo, { memo = it }, recentTags)
             }
-            Column(Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+            Column(Modifier.fillMaxWidth().padding(horizontal = Spacing.screen, vertical = 12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                 when (permissionUi) {
                     PermissionUi.None -> {}
                     PermissionUi.Denied -> Text(stringResource(R.string.permission_denied), modifier = Modifier.padding(bottom = 8.dp))
@@ -329,27 +329,27 @@ internal fun RecorderScreen(stopRequested: Boolean, onStopRequestConsumed: () ->
     }
 }
 
-/** 計測中の画面モード(FR-2.3)。開始前に選ぶ。 */
+/** 計測中の画面モード(FR-2.3)。開始前に選ぶ。選択肢は、名前と 1 行の説明だけにする。 */
 @Composable
 private fun ScreenModeSelector(selected: ScreenMode, onSelect: (ScreenMode) -> Unit) {
-    Column(Modifier.fillMaxWidth()) {
-        Text(stringResource(R.string.mode_title), style = MaterialTheme.typography.titleMedium)
-        ScreenMode.entries.forEach { mode ->
+    SectionCard(title = stringResource(R.string.mode_title)) {
+        ScreenMode.entries.forEachIndexed { i, mode ->
+            if (i > 0) CardDivider()
             Row(
-                Modifier.fillMaxWidth().clickable { onSelect(mode) }.padding(vertical = 4.dp),
-                verticalAlignment = Alignment.Top,
+                Modifier.fillMaxWidth().clickable { onSelect(mode) },
+                verticalAlignment = Alignment.CenterVertically,
             ) {
                 RadioButton(selected = mode == selected, onClick = { onSelect(mode) })
-                Column(Modifier.padding(top = 12.dp)) {
+                Column(Modifier.padding(start = 4.dp)) {
                     Text(stringResource(mode.titleRes), style = MaterialTheme.typography.bodyLarge)
-                    Text(stringResource(mode.descriptionRes), style = MaterialTheme.typography.bodySmall)
+                    MutedText(stringResource(mode.descriptionRes))
                 }
             }
         }
     }
 }
 
-/** ホームの見出し: 今の時刻と、目標睡眠時間で寝た場合の起床時刻の目安。 */
+/** ホームの見出し: 今の時刻を大きく。その下に、目標の睡眠時間で寝た場合の起床時刻の目安を、1 行で。 */
 @Composable
 private fun HomeHeader() {
     var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
@@ -362,13 +362,14 @@ private fun HomeHeader() {
     val fmt = remember { DateFormat.getTimeInstance(DateFormat.SHORT) }
     val settings by AppSettings.state.collectAsState()
     val goalMin = settings.goalSleepMin
-    Column(Modifier.fillMaxWidth()) {
-        Text(stringResource(R.string.state_stopped), style = MaterialTheme.typography.titleMedium)
-        Text(fmt.format(Date(now)), style = MaterialTheme.typography.displayMedium)
-        Text(
-            stringResource(R.string.home_wake_hint, goalMin / 60, goalMin % 60, fmt.format(Date(now + settings.goalSleepMs))),
-            style = MaterialTheme.typography.bodyMedium,
-        )
+    SectionCard {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Text(fmt.format(Date(now)), style = MaterialTheme.typography.displayMedium)
+            Pill(stringResource(R.string.state_stopped))
+        }
+        CardDivider()
+        InfoRow(stringResource(R.string.home_goal_label), stringResource(R.string.duration_hm_long, goalMin / 60, goalMin % 60))
+        InfoRow(stringResource(R.string.home_wake_label), fmt.format(Date(now + settings.goalSleepMs)))
     }
 }
 

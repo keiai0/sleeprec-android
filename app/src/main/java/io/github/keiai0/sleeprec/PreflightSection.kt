@@ -96,79 +96,78 @@ fun rememberDeviceStatus(): DeviceStatus {
     return status
 }
 
-private enum class Mark { OK, WARNING, INFO }
-
-@Composable
-private fun CheckRow(mark: Mark, text: String, actionLabel: String? = null, onAction: () -> Unit = {}) {
-    val (icon, color) = when (mark) {
-        Mark.OK -> Icons.Filled.Check to MaterialTheme.colorScheme.primary
-        Mark.WARNING -> Icons.Filled.Warning to MaterialTheme.colorScheme.error
-        Mark.INFO -> Icons.Filled.Info to MaterialTheme.colorScheme.onSurfaceVariant
-    }
-    Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.Top) {
-        Icon(icon as ImageVector, contentDescription = null, tint = color, modifier = Modifier.padding(end = 12.dp, top = 2.dp))
-        Column(Modifier.weight(1f)) {
-            Text(text, style = MaterialTheme.typography.bodyMedium)
-            if (actionLabel != null) TextButton(onClick = onAction) { Text(actionLabel) }
-        }
-    }
-}
-
 /**
- * 開始前のチェックリスト(FR-2.4)。警告が出ていても、計測は開始できる(ブロックしない)。
- * 状態を表す記号と文章の両方で示す(色だけに頼らない)。
+ * 開始前のチェックリスト(FR-2.4)。項目ごとに 1 行(名前・1 行の補足・状態のラベル)で、対処が要るものだけボタンを出す。
+ * 警告が出ていても、計測は開始できる(ブロックしない)。状態は、色だけでなく、言葉でも示す。
  */
 @Composable
 fun PreflightChecklist(status: DeviceStatus, backgroundSetupDone: Boolean, onOpenAssistant: () -> Unit) {
     val context = LocalContext.current
-    Column(Modifier.fillMaxWidth()) {
-        Text(stringResource(R.string.preflight_title), style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(bottom = 4.dp))
+    val ok = stringResource(R.string.status_ok)
+    val check = stringResource(R.string.status_check)
+    val info = stringResource(R.string.status_info)
 
+    SectionCard(title = stringResource(R.string.preflight_title)) {
+        // 電池(残量と充電)
         val battery = PreflightRules.battery(status.batteryPercent, status.charging)
-        CheckRow(
-            if (PreflightRules.batteryIsWarning(battery)) Mark.WARNING else Mark.OK,
-            stringResource(
+        val warn = PreflightRules.batteryIsWarning(battery)
+        StatusRow(
+            title = stringResource(R.string.pf_battery_title, status.batteryPercent),
+            tone = if (warn) Tone.WARN else if (status.charging) Tone.GOOD else Tone.INFO,
+            statusText = if (warn) check else if (status.charging) ok else info,
+            sub = stringResource(
                 when (battery) {
-                    PreflightRules.Battery.OK -> R.string.pf_battery_ok
-                    PreflightRules.Battery.OK_CHARGING -> R.string.pf_battery_charging
-                    PreflightRules.Battery.LOW -> R.string.pf_battery_low
-                    PreflightRules.Battery.VERY_LOW -> R.string.pf_battery_very_low
-                },
-                status.batteryPercent,
+                    PreflightRules.Battery.OK_CHARGING -> R.string.pf_battery_sub_charging
+                    PreflightRules.Battery.OK -> R.string.pf_battery_sub_ok
+                    PreflightRules.Battery.LOW -> R.string.pf_battery_sub_low
+                    PreflightRules.Battery.VERY_LOW -> R.string.pf_battery_sub_very_low
+                }
             ),
         )
-        CheckRow(
-            if (status.charging) Mark.OK else Mark.WARNING,
-            stringResource(if (status.charging) R.string.pf_charging_yes else R.string.pf_charging_no),
-        )
-        CheckRow(Mark.INFO, stringResource(R.string.pf_placement))
+        CardDivider()
+        // 通知
         if (status.notificationsGranted) {
-            CheckRow(Mark.OK, stringResource(R.string.pf_notifications_ok))
+            StatusRow(stringResource(R.string.pa_notifications), Tone.GOOD, ok)
         } else {
-            CheckRow(Mark.WARNING, stringResource(R.string.pf_notifications_ng), stringResource(R.string.pf_open_notification_settings)) {
-                context.startActivity(
-                    Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
-                )
+            StatusRow(
+                stringResource(R.string.pa_notifications), Tone.WARN, check, stringResource(R.string.pf_notifications_sub),
+                stringResource(R.string.pf_open_settings),
+            ) {
+                context.startActivity(Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName))
             }
         }
+        CardDivider()
+        // バッテリー最適化
         if (status.batteryOptimizationIgnored) {
-            CheckRow(Mark.OK, stringResource(R.string.pf_battery_opt_ok))
+            StatusRow(stringResource(R.string.pa_battery_opt), Tone.GOOD, ok, stringResource(R.string.pf_battery_opt_sub_ok))
         } else {
-            CheckRow(Mark.WARNING, stringResource(R.string.pf_battery_opt_ng), stringResource(R.string.pf_open_battery_settings)) {
+            StatusRow(
+                stringResource(R.string.pa_battery_opt), Tone.WARN, check, stringResource(R.string.pf_battery_opt_sub_ng),
+                stringResource(R.string.pf_open_settings),
+            ) {
                 // 「除外」を直接求める Intent は Play の制限対象なので、除外を設定できる一覧の画面を開く
                 context.startActivity(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS))
             }
         }
+        CardDivider()
         // メーカー独自のバックグラウンド動作の設定は、端末から判定できない。済ませたと申告されるまで、案内を出す
         if (backgroundSetupDone) {
-            CheckRow(Mark.OK, stringResource(R.string.pf_background_done))
+            StatusRow(stringResource(R.string.pf_background_title), Tone.GOOD, ok, stringResource(R.string.pf_background_sub_ok))
         } else {
-            CheckRow(Mark.WARNING, stringResource(R.string.pf_background_todo), stringResource(R.string.pf_open_assistant), onOpenAssistant)
+            StatusRow(
+                stringResource(R.string.pf_background_title), Tone.WARN, check, stringResource(R.string.pf_background_sub_ng),
+                stringResource(R.string.pf_open_assistant), onOpenAssistant,
+            )
         }
-        CheckRow(
-            if (status.micGranted) Mark.OK else Mark.INFO,
-            stringResource(if (status.micGranted) R.string.pf_mic_ok else R.string.pf_mic_ask),
-        )
+        CardDivider()
+        // マイク
+        if (status.micGranted) {
+            StatusRow(stringResource(R.string.pa_mic), Tone.GOOD, ok)
+        } else {
+            StatusRow(stringResource(R.string.pa_mic), Tone.INFO, info, stringResource(R.string.pf_mic_sub))
+        }
+        CardDivider()
+        ExpandableNote(stringResource(R.string.pf_placement_summary), stringResource(R.string.pf_placement_detail))
     }
 }
 
@@ -192,12 +191,11 @@ fun TagEditor(
         }
     }
 
-    Column(Modifier.fillMaxWidth()) {
-        Text(stringResource(R.string.tags_title), style = MaterialTheme.typography.titleMedium)
-        Text(stringResource(R.string.tags_hint), style = MaterialTheme.typography.labelMedium)
+    SectionCard(title = stringResource(R.string.tags_title)) {
+        MutedText(stringResource(R.string.tags_hint))
 
         if (tags.isNotEmpty()) {
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 8.dp)) {
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 tags.forEach { tag ->
                     InputChip(
                         selected = true,
@@ -224,13 +222,13 @@ fun TagEditor(
             trailingIcon = { TextButton(onClick = { add(input) }) { Text(stringResource(R.string.tag_add)) } },
             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
             keyboardActions = KeyboardActions(onDone = { add(input) }),
-            modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+            modifier = Modifier.fillMaxWidth(),
         )
 
         // 最近使ったタグ(まだ付けていないもの)
         val suggestions = recent.filter { r -> tags.none { it == r } }
         if (suggestions.isNotEmpty()) {
-            Text(stringResource(R.string.tags_recent), style = MaterialTheme.typography.labelMedium, modifier = Modifier.padding(top = 4.dp))
+            MutedText(stringResource(R.string.tags_recent))
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 suggestions.forEach { tag -> AssistChip(onClick = { add(tag) }, label = { Text(tag) }) }
             }
@@ -243,7 +241,7 @@ fun TagEditor(
             supportingText = { Text(stringResource(R.string.memo_counter, memo.length, MEMO_MAX_LENGTH)) },
             minLines = 2,
             maxLines = 4,
-            modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+            modifier = Modifier.fillMaxWidth(),
         )
     }
 }

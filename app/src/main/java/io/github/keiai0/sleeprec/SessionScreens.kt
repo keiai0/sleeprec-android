@@ -72,7 +72,7 @@ private fun formatDateTime(ms: Long): String =
 
 private fun formatTime(ms: Long): String = DateFormat.getTimeInstance(DateFormat.MEDIUM).format(Date(ms))
 
-/** セッション一覧(Journal の原型)。新しい順。開始日時、長さ、状態、イベント数を出す。 */
+/** 記録一覧。1 件 = 1 枚のカード(日時・状態のラベル・計測時間・音声イベント数)。新しい順。 */
 @Composable
 fun SessionListScreen(onOpen: (Long) -> Unit) {
     val context = LocalContext.current
@@ -83,28 +83,38 @@ fun SessionListScreen(onOpen: (Long) -> Unit) {
         rows = withContext(Dispatchers.IO) { store.finishedSessions().map { it to store.eventCount(it.id) } }
     }
 
-    Column(Modifier.fillMaxSize().padding(16.dp)) {
-        Text(stringResource(R.string.list_title), style = MaterialTheme.typography.headlineSmall)
+    Column(Modifier.fillMaxSize().padding(horizontal = Spacing.screen)) {
+        PageTitle(stringResource(R.string.list_title), Modifier.padding(top = Spacing.screen, bottom = 12.dp))
         val list = rows
         when {
             list == null -> {}
-            list.isEmpty() -> Text(stringResource(R.string.list_empty), Modifier.padding(top = 16.dp))
-            else -> LazyColumn {
+            list.isEmpty() -> MutedText(stringResource(R.string.list_empty))
+            else -> LazyColumn(
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+                contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = Spacing.screen),
+            ) {
                 items(list, key = { it.first.id }) { (s, count) ->
-                    Column(Modifier.fillMaxWidth().clickable { onOpen(s.id) }.padding(vertical = 12.dp)) {
-                        Text(formatDateTime(s.startedAt), style = MaterialTheme.typography.titleMedium)
-                        Text(
-                            stringResource(
-                                R.string.list_row_detail,
-                                formatMs(sessionEndMs(s)), stringResource(statusLabel(s.status)), count,
-                            )
-                        )
+                    SectionCard(onClick = { onOpen(s.id) }) {
+                        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                            Text(formatDateTime(s.startedAt), style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f).padding(end = 8.dp))
+                            Pill(stringResource(statusLabel(s.status)), statusTone(s.status))
+                        }
+                        Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                            MutedText(stringResource(R.string.list_row_duration, formatDurationJa(sessionEndMs(s))))
+                            MutedText(stringResource(R.string.list_row_events, count))
+                        }
                     }
-                    HorizontalDivider()
                 }
             }
         }
     }
+}
+
+private fun statusTone(status: SessionStatus): Tone = when (status) {
+    SessionStatus.COMPLETED -> Tone.GOOD
+    SessionStatus.SHORT_SLEEP -> Tone.NEUTRAL
+    SessionStatus.INTERRUPTED -> Tone.WARN
+    SessionStatus.RECORDING -> Tone.INFO
 }
 
 /**
@@ -175,7 +185,18 @@ fun SessionDetailScreen(sessionId: Long, onBack: () -> Unit) {
     val s = session ?: return
     val totalMs = maxOf(sessionEndMs(s), (samples.maxOfOrNull { it.second } ?: 0) * 1000L + 1000L)
 
-    Column(Modifier.fillMaxSize().padding(16.dp)) {
+    // 睡眠の推定・スコア。音イベントから計算するので、イベントの種別を直すと結果も変わる
+    val analysis = remember(s, events, pauses) {
+        SleepAnalyzer.analyze(s.startedAt, s.endedAt ?: s.lastAliveAt, events, pauses.map { it.startedAt to it.endedAt })
+    }
+    val goalMs = AppSettings.state.collectAsState().value.goalSleepMs
+    val score = remember(analysis, previousNights, s.mood, goalMs) {
+        val nights = (previousNights + s).filter { it.status == SessionStatus.COMPLETED }
+            .map { NightTimes(it.startedAt, it.endedAt ?: it.lastAliveAt) }
+        SleepScore.compute(s.status, analysis.metrics, nights, mood = s.mood, goalMs = goalMs)
+    }
+
+    Column(Modifier.fillMaxSize().padding(horizontal = Spacing.screen)) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
             TextButton(onClick = onBack) { Text(stringResource(R.string.back)) }
             // 計測中の記録は消せない(計測画面から終了する)
@@ -185,110 +206,84 @@ fun SessionDetailScreen(sessionId: Long, onBack: () -> Unit) {
                 }
             }
         }
-        // 見出し・グラフ・クリップ一覧を 1 つのリストにして、画面全体をスクロールできるようにする
-        LazyColumn {
+        // 1 つのまとまり = 1 枚のカード。全体を 1 つのリストにして、画面全体をスクロールできるようにする
+        val snore = SnoreSummary.of(events)
+        LazyColumn(
+            verticalArrangement = Arrangement.spacedBy(Spacing.cards),
+            contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = Spacing.screen),
+        ) {
+            // 1. この夜の記録
             item {
-                Text(formatDateTime(s.startedAt), style = MaterialTheme.typography.headlineSmall)
-                Text(
-                    stringResource(R.string.detail_summary, formatMs(sessionEndMs(s)), stringResource(statusLabel(s.status))),
-                    Modifier.padding(bottom = 12.dp),
-                )
-                // 起床時の気分(FR-2.11)。保存された記録(短時間睡眠を含む)だけ、入力・変更できる
-                if (s.status == SessionStatus.COMPLETED || s.status == SessionStatus.SHORT_SLEEP) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
+                SectionCard(
+                    title = formatDateTime(s.startedAt),
+                    trailing = { Pill(stringResource(statusLabel(s.status)), statusTone(s.status)) },
+                ) {
+                    InfoRow(stringResource(R.string.overview_duration), formatDurationJa(sessionEndMs(s)))
+                    // 起床時の気分(FR-2.11)。保存された記録(短時間睡眠を含む)だけ、入力・変更できる
+                    if (s.status == SessionStatus.COMPLETED || s.status == SessionStatus.SHORT_SLEEP) {
                         val mood = Mood.of(s.mood)
-                        Text(
-                            if (mood != null) stringResource(R.string.detail_mood, mood.emoji, stringResource(mood.labelRes))
-                            else stringResource(R.string.detail_mood_none),
-                        )
-                        TextButton(onClick = { editingMood = true }) {
-                            Text(stringResource(if (mood != null) R.string.mood_change else R.string.mood_enter))
+                        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                            Text(stringResource(R.string.overview_mood), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.weight(1f))
+                            Text(
+                                if (mood != null) "${mood.emoji} ${stringResource(mood.labelRes)}" else stringResource(R.string.overview_none),
+                                style = MaterialTheme.typography.titleSmall,
+                            )
+                            TextButton(onClick = { editingMood = true }) { Text(stringResource(if (mood != null) R.string.mood_change else R.string.mood_enter)) }
                         }
                     }
-                }
-                if (pauses.isNotEmpty()) {
-                    val end = s.endedAt ?: s.lastAliveAt
-                    val totalMs = pauses.sumOf { (it.endedAt ?: end) - it.startedAt }
-                    Text(stringResource(R.string.detail_pauses, pauses.size, formatMs(totalMs)))
-                }
-                if (tags.isNotEmpty()) Text(stringResource(R.string.detail_tags, tags.joinToString("、")))
-                s.memo?.let { Text(stringResource(R.string.detail_memo, it), modifier = Modifier.padding(bottom = 4.dp)) }
-                // 睡眠の推定・スコア。音イベントから計算するので、イベントの種別を直すと結果も変わる
-                val analysis = remember(s, events, pauses) {
-                    SleepAnalyzer.analyze(s.startedAt, s.endedAt ?: s.lastAliveAt, events, pauses.map { it.startedAt to it.endedAt })
-                }
-                val goalMs = AppSettings.state.collectAsState().value.goalSleepMs
-                val score = remember(analysis, previousNights, s.mood, goalMs) {
-                    val nights = (previousNights + s).filter { it.status == SessionStatus.COMPLETED }
-                        .map { NightTimes(it.startedAt, it.endedAt ?: it.lastAliveAt) }
-                    SleepScore.compute(s.status, analysis.metrics, nights, mood = s.mood, goalMs = goalMs)
-                }
-                SleepSection(analysis, score)
-                Text(stringResource(R.string.timeline_title), style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = 8.dp, bottom = 4.dp))
-                val targets = remember(events, apneas, s) { ClipPlayback.targets(events, apneas, s.startedAt) }
-                SleepTimeline(
-                    stages = analysis.stages,
-                    samples = samples,
-                    events = events,
-                    apneas = apneas,
-                    pauses = pauses.map { it.startedAt to it.endedAt },
-                    sessionStartedAt = s.startedAt,
-                    totalMs = totalMs,
-                    targets = targets,
-                    playingId = player.currentId,
-                    playPositionMs = player.positionMs,
-                    onTap = { t -> player.play(t.id, t.path, t.maxDb) },
-                )
-                Text(stringResource(R.string.graph_hint), style = MaterialTheme.typography.labelSmall, modifier = Modifier.padding(top = 4.dp))
-                SnoreSummary.of(events)?.let { snore ->
-                    Text(
-                        stringResource(R.string.snore_title),
-                        style = MaterialTheme.typography.titleMedium,
-                        modifier = Modifier.padding(top = 16.dp),
-                    )
-                    Text(stringResource(R.string.snore_detail, snore.count, formatMs(snore.totalMs), snore.maxDb, snore.avgDb))
-                    Text(
-                        stringResource(
-                            R.string.snore_levels,
-                            snore.levelCounts.getValue(SnoreLevel.QUIET), snore.levelCounts.getValue(SnoreLevel.LIGHT),
-                            snore.levelCounts.getValue(SnoreLevel.LOUD), snore.levelCounts.getValue(SnoreLevel.VERY_LOUD),
-                            stringResource(snore.maxLevel.labelRes),
-                        )
-                    )
-                    Text(
-                        stringResource(R.string.snore_times, snore.times.joinToString(" ") { formatTime(it).take(5) }),
-                        style = MaterialTheme.typography.labelSmall,
-                    )
-                }
-                if (SnoreSummary.of(events) != null || apneas.isNotEmpty()) {
-                    ApneaCard(ApneaSummary.of(apneas, sessionEndMs(s)))
+                    if (tags.isNotEmpty()) InfoRow(stringResource(R.string.overview_tags), tags.joinToString("、"))
+                    s.memo?.let { memo ->
+                        Column {
+                            MutedText(stringResource(R.string.overview_memo))
+                            Text(memo, style = MaterialTheme.typography.bodyMedium)
+                        }
+                    }
+                    if (pauses.isNotEmpty()) {
+                        val end = s.endedAt ?: s.lastAliveAt
+                        val pausedMs = pauses.sumOf { (it.endedAt ?: end) - it.startedAt }
+                        InfoRow(stringResource(R.string.overview_pauses), stringResource(R.string.overview_pauses_value, pauses.size, formatDurationJa(pausedMs)))
+                    }
                 }
             }
-            if (apneas.isNotEmpty()) {
-                item {
-                    Text(
-                        stringResource(R.string.apnea_clips_title, apneas.size),
-                        style = MaterialTheme.typography.titleMedium,
-                        modifier = Modifier.padding(top = 8.dp, bottom = 4.dp),
-                    )
-                }
-                items(apneas, key = { -it.id }) { c ->
-                    ApneaRow(c, player)
-                    HorizontalDivider()
-                }
-                item { Spacer(Modifier.height(8.dp)) }
-            }
+            // 2. 睡眠スコア
+            item { ScoreCard(score) }
+            // 3. 睡眠の指標
+            item { MetricsCard(analysis) }
+            // 4. タイムライン(睡眠曲線・音量・音のマーカーを、同じ時間軸に重ねる)
             item {
-                Text(
-                    stringResource(R.string.clips_title, events.size),
-                    style = MaterialTheme.typography.titleMedium,
-                    modifier = Modifier.padding(top = 16.dp, bottom = 4.dp),
-                )
-                if (events.isEmpty()) Text(stringResource(R.string.clips_empty))
+                SectionCard(title = stringResource(R.string.timeline_title)) {
+                    val targets = remember(events, apneas, s) { ClipPlayback.targets(events, apneas, s.startedAt) }
+                    SleepTimeline(
+                        stages = analysis.stages,
+                        samples = samples,
+                        events = events,
+                        apneas = apneas,
+                        pauses = pauses.map { it.startedAt to it.endedAt },
+                        sessionStartedAt = s.startedAt,
+                        totalMs = totalMs,
+                        targets = targets,
+                        playingId = player.currentId,
+                        playPositionMs = player.positionMs,
+                        onTap = { t -> player.play(t.id, t.path, t.maxDb) },
+                    )
+                    ExpandableNote(stringResource(R.string.timeline_hint_summary), stringResource(R.string.graph_hint))
+                }
             }
-            items(events, key = { it.id }) { e ->
-                ClipRow(e, s.startedAt, player, onDelete = { deleting = e }, onRetype = { retyping = e }, analyze = analyze)
-                HorizontalDivider()
+            // 5. いびき
+            snore?.let { item { SnoreCard(it) } }
+            // 6. 無呼吸の目安
+            if (snore != null || apneas.isNotEmpty()) {
+                item { ApneaCard(ApneaSummary.of(apneas, sessionEndMs(s)), apneas, player) }
+            }
+            // 7. 音声イベント
+            item {
+                SectionCard(title = stringResource(R.string.clips_title, events.size)) {
+                    if (events.isEmpty()) MutedText(stringResource(R.string.clips_empty))
+                    events.forEachIndexed { i, e ->
+                        if (i > 0) CardDivider()
+                        ClipRow(e, s.startedAt, player, onDelete = { deleting = e }, onRetype = { retyping = e }, analyze = analyze)
+                    }
+                }
             }
         }
     }
@@ -369,21 +364,19 @@ private fun ClipRow(
     var analysis by remember { mutableStateOf<String?>(null) }
     val hasAudio = e.clipPath != null
     val current = player.currentId == e.id
-    Column(Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
-        Text(
-            "${formatTime(e.startedAt)}  ${stringResource(e.type.labelRes)}" +
-                // いびきは、強度の区分も添える
-                (if (e.type == EventType.SNORING) "(${stringResource(SnoreLevel.of(e.maxDb).labelRes)})" else "") +
-                if (e.typeCorrected) stringResource(R.string.type_corrected_mark) else "",
-            style = MaterialTheme.typography.titleSmall,
-        )
-        Text(
-            stringResource(
-                R.string.clip_detail,
-                formatMs(e.durationMs), e.maxDb, formatMs(e.startedAt - sessionStart),
+    Column(Modifier.fillMaxWidth()) {
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Text(formatTime(e.startedAt), style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f).padding(end = 8.dp))
+            // 種別を状態のラベルで示す。いびきは強度、修正した種別は「修正済み」を添える
+            Pill(
+                stringResource(e.type.labelRes) +
+                    (if (e.type == EventType.SNORING) "・${stringResource(SnoreLevel.of(e.maxDb).labelRes)}" else "") +
+                    (if (e.typeCorrected) "・${stringResource(R.string.type_corrected_short)}" else ""),
+                if (e.type == EventType.SNORING) Tone.GOOD else Tone.NEUTRAL,
             )
-        )
-        if (!hasAudio) Text(stringResource(R.string.audio_deleted), style = MaterialTheme.typography.labelMedium)
+        }
+        MutedText(stringResource(R.string.clip_detail, formatDurationJa(e.durationMs), e.maxDb))
+        if (!hasAudio) MutedText(stringResource(R.string.audio_deleted))
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
             if (hasAudio) {
                 TextButton(onClick = { if (current) player.togglePause() else player.play(e) }) {
@@ -404,36 +397,60 @@ private fun ClipRow(
     }
 }
 
-/** 無呼吸の目安(FR-4.6)。診断ではないことを、常に一緒に表示する。 */
+/** いびき(FR-4.5)。回数・時間・音量と、強度ごとの回数。強度は端末のマイクの感度による目安。 */
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
-private fun ApneaCard(a: ApneaSummary) {
-    Column(Modifier.fillMaxWidth().padding(top = 16.dp)) {
-        Text(stringResource(R.string.apnea_title), style = MaterialTheme.typography.titleMedium)
-        if (a.count == 0) {
-            Text(stringResource(R.string.apnea_none))
-        } else {
-            Text(stringResource(R.string.apnea_count, a.count, formatMs(a.maxSilenceMs), formatMs(a.totalSilenceMs)))
+private fun SnoreCard(snore: SnoreSummary) {
+    SectionCard(title = stringResource(R.string.snore_title)) {
+        InfoRow(stringResource(R.string.snore_count_label), stringResource(R.string.metric_times, snore.count))
+        InfoRow(stringResource(R.string.snore_total_label), formatDurationJa(snore.totalMs))
+        InfoRow(stringResource(R.string.snore_db_label), "%.1f / %.1f dBFS".format(snore.maxDb, snore.avgDb))
+        Text(stringResource(R.string.snore_level_title), style = MaterialTheme.typography.titleSmall)
+        androidx.compose.foundation.layout.FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            SnoreLevel.entries.forEach { lv ->
+                val n = snore.levelCounts.getValue(lv)
+                Pill("${stringResource(lv.labelRes)} $n", if (lv == snore.maxLevel) Tone.GOOD else Tone.INFO)
+            }
         }
-        val level = a.level
-        val perHour = a.perHour
-        if (level != null && perHour != null) {
-            Text(stringResource(R.string.apnea_rate, perHour, stringResource(levelLabel(level))))
-        } else if (a.count > 0) {
-            Text(stringResource(R.string.apnea_short_session), style = MaterialTheme.typography.labelMedium)
+        MutedText(stringResource(R.string.snore_times_line, snore.times.take(8).joinToString("  ") { formatTime(it).take(5) } + if (snore.times.size > 8) " …" else ""))
+        ExpandableNote(stringResource(R.string.snore_note_summary), stringResource(R.string.snore_note_detail))
+    }
+}
+
+/** 無呼吸の目安(FR-4.6)。診断ではないことを、常に見える 1 行で示し、詳しい説明は「詳しく」に置く。候補のクリップも、このカードの中に並べる。 */
+@Composable
+private fun ApneaCard(a: ApneaSummary, candidates: List<ApneaCandidate>, player: ClipPlayer) {
+    SectionCard(
+        title = stringResource(R.string.apnea_title),
+        trailing = {
+            val level = a.level
+            if (level != null) Pill(stringResource(levelLabel(level)), if (a.showRiskNotice) Tone.WARN else if (level == ApneaLevel.NORMAL) Tone.GOOD else Tone.INFO)
+        },
+    ) {
+        if (a.count == 0) {
+            MutedText(stringResource(R.string.apnea_none))
+        } else {
+            InfoRow(stringResource(R.string.apnea_count_label), stringResource(R.string.metric_times, a.count))
+            InfoRow(stringResource(R.string.apnea_silence_label), "${formatDurationJa(a.maxSilenceMs)} / ${formatDurationJa(a.totalSilenceMs)}")
+            val perHour = a.perHour
+            if (perHour != null) InfoRow(stringResource(R.string.apnea_rate_label), stringResource(R.string.apnea_rate_value, perHour))
+            else MutedText(stringResource(R.string.apnea_short_session))
         }
         if (a.showRiskNotice) {
-            Text(
-                stringResource(R.string.apnea_risk),
-                color = MaterialTheme.colorScheme.error,
-                style = MaterialTheme.typography.bodyMedium,
-                modifier = Modifier.padding(top = 4.dp),
-            )
+            Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Pill(stringResource(R.string.apnea_risk_pill), Tone.WARN)
+                Text(stringResource(R.string.apnea_risk), style = MaterialTheme.typography.bodySmall, modifier = Modifier.weight(1f))
+            }
         }
-        Text(
-            stringResource(R.string.apnea_disclaimer),
-            style = MaterialTheme.typography.labelSmall,
-            modifier = Modifier.padding(top = 4.dp),
-        )
+        ExpandableNote(stringResource(R.string.apnea_disclaimer_summary), stringResource(R.string.apnea_disclaimer))
+        if (candidates.isNotEmpty()) {
+            CardDivider()
+            Text(stringResource(R.string.apnea_clips_title, candidates.size), style = MaterialTheme.typography.titleSmall)
+            candidates.forEachIndexed { i, c ->
+                if (i > 0) CardDivider()
+                ApneaRow(c, player)
+            }
+        }
     }
 }
 
@@ -449,11 +466,13 @@ private fun levelLabel(level: ApneaLevel): Int = when (level) {
 private fun ApneaRow(c: ApneaCandidate, player: ClipPlayer) {
     val playId = -c.id // イベントの id と重ならないよう負の値にする
     val current = player.currentId == playId
-    Column(Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
-        Text(formatTime(c.startedAt), style = MaterialTheme.typography.titleSmall)
-        Text(stringResource(R.string.apnea_row_detail, formatMs(c.silenceMs)))
+    Column(Modifier.fillMaxWidth()) {
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Text(formatTime(c.startedAt), style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f).padding(end = 8.dp))
+            Pill(stringResource(R.string.apnea_row_pill, formatDurationJa(c.silenceMs)), Tone.WARN)
+        }
         if (c.clipPath == null) {
-            Text(stringResource(R.string.audio_deleted), style = MaterialTheme.typography.labelMedium)
+            MutedText(stringResource(R.string.audio_deleted))
         } else {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
                 TextButton(onClick = { if (current) player.togglePause() else player.play(playId, c.clipPath, c.maxDb) }) {
