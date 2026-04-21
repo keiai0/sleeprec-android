@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -111,7 +112,7 @@ fun Pill(text: String, tone: Tone = Tone.NEUTRAL, modifier: Modifier = Modifier)
 fun InfoRow(label: String, value: String, modifier: Modifier = Modifier) {
     Row(modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
         Text(label, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.weight(1f))
-        Text(value, style = MaterialTheme.typography.titleSmall, textAlign = androidx.compose.ui.text.style.TextAlign.End)
+        Text(value, style = MaterialTheme.typography.titleSmall, textAlign = androidx.compose.ui.text.style.TextAlign.End, modifier = Modifier.padding(start = 12.dp))
     }
 }
 
@@ -145,7 +146,7 @@ fun MetricTile(label: String, value: String, modifier: Modifier = Modifier, sub:
     Surface(
         modifier, shape = RoundedCornerShape(14.dp), color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f),
     ) {
-        Column(Modifier.padding(12.dp)) {
+        Column(Modifier.fillMaxSize().padding(12.dp)) {
             MutedText(label, maxLines = 1)
             Text(value, style = MaterialTheme.typography.titleLarge, maxLines = 1)
             if (sub != null) MutedText(sub, maxLines = 1)
@@ -192,7 +193,7 @@ fun formatDurationJa(ms: Long): String {
     val s = (ms / 1000).coerceAtLeast(0)
     return when {
         s >= 3600 -> "%d 時間 %d 分".format(s / 3600, s % 3600 / 60)
-        s >= 60 -> "%d 分 %d 秒".format(s / 60, s % 60)
+        s >= 60 -> if (s % 60 == 0L) "%d 分".format(s / 60) else "%d 分 %d 秒".format(s / 60, s % 60)
         else -> "%d 秒".format(s)
     }
 }

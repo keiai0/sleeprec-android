@@ -5,7 +5,9 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -165,9 +167,9 @@ fun MetricsCard(analysis: SleepAnalysis) {
                 ),
         )
         rows.forEach { (l, r) ->
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                MetricTile(l.first, l.second, Modifier.weight(1f), l.third)
-                MetricTile(r.first, r.second, Modifier.weight(1f), r.third)
+            Row(Modifier.height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                MetricTile(l.first, l.second, Modifier.weight(1f).fillMaxHeight(), l.third)
+                MetricTile(r.first, r.second, Modifier.weight(1f).fillMaxHeight(), r.third)
             }
         }
 

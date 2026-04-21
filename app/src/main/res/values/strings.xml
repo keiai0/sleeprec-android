@@ -442,7 +442,7 @@
     <string name="no_score_interrupted">中断された記録は、対象外です</string>
     <string name="no_score_too_short">総睡眠時間が 4 時間未満です</string>
     <string name="no_score_no_sleep">入眠が見つかりませんでした</string>
-    <string name="score_explain_button">スコアの算出方法</string>
+    <string name="score_explain_button">算出方法</string>
     <string name="band_excellent">とても良い</string>
     <string name="band_pretty_good">良い</string>
     <string name="band_fair">ふつう</string>

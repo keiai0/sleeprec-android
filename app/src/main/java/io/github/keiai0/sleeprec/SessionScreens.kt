@@ -70,6 +70,9 @@ private fun formatMs(ms: Long): String {
 private fun formatDateTime(ms: Long): String =
     DateFormat.getDateTimeInstance(DateFormat.MEDIUM, DateFormat.SHORT).format(Date(ms))
 
+/** 「23:55」のような、秒なしの時刻。 */
+private fun formatClockShort(ms: Long): String = DateFormat.getTimeInstance(DateFormat.SHORT).format(Date(ms))
+
 private fun formatTime(ms: Long): String = DateFormat.getTimeInstance(DateFormat.MEDIUM).format(Date(ms))
 
 /** 記録一覧。1 件 = 1 枚のカード(日時・状態のラベル・計測時間・音声イベント数)。新しい順。 */
@@ -412,7 +415,7 @@ private fun SnoreCard(snore: SnoreSummary) {
                 Pill("${stringResource(lv.labelRes)} $n", if (lv == snore.maxLevel) Tone.GOOD else Tone.INFO)
             }
         }
-        MutedText(stringResource(R.string.snore_times_line, snore.times.take(8).joinToString("  ") { formatTime(it).take(5) } + if (snore.times.size > 8) " …" else ""))
+        MutedText(stringResource(R.string.snore_times_line, snore.times.take(8).joinToString("  ") { formatClockShort(it) } + if (snore.times.size > 8) " …" else ""))
         ExpandableNote(stringResource(R.string.snore_note_summary), stringResource(R.string.snore_note_detail))
     }
 }
@@ -468,7 +471,7 @@ private fun ApneaRow(c: ApneaCandidate, player: ClipPlayer) {
     val current = player.currentId == playId
     Column(Modifier.fillMaxWidth()) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            Text(formatTime(c.startedAt), style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f).padding(end = 8.dp))
+            Text(formatClockShort(c.startedAt), style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f).padding(end = 8.dp))
             Pill(stringResource(R.string.apnea_row_pill, formatDurationJa(c.silenceMs)), Tone.WARN)
         }
         if (c.clipPath == null) {
