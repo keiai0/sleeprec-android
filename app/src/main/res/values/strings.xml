@@ -126,6 +126,11 @@
     <string name="profile_height_invalid">身長は 50〜250 cm の範囲で入力してください。</string>
     <string name="profile_weight_invalid">体重は 20〜300 kg の範囲で入力してください。</string>
     <string name="settings_data">データ</string>
+    <string name="setting_keep_full">全録音を保存する</string>
+    <string name="setting_keep_full_note">オフのときは、検出した音のクリップだけを保存します(既定)。オンにすると、一晩ぶんの録音をすべて保存しますが、1 時間あたり約 115 MB(8 時間で約 0.9 GB)の容量が必要で、7 日で自動的に削除されます。次の計測から反映されます。</string>
+    <string name="setting_delete_full">保存済みの全録音を削除</string>
+    <string name="full_size">現在 %1$s(検出したクリップ、スコアなどは残ります)</string>
+    <string name="full_deleted">保存済みの全録音を削除しました。</string>
     <string name="setting_clear_cache">キャッシュを削除</string>
     <string name="cache_size">現在 %1$s(画像の共有に使った一時ファイルなど)</string>
     <string name="cache_cleared">キャッシュを削除しました。</string>

@@ -18,7 +18,8 @@ import java.util.concurrent.Executor
  * UI や Service には依存しない。音量は読み取りループで0.1秒フレームごとに計算し、1秒ごとに onSecond へ渡す。
  */
 class WavRecorder(
-    private val outFile: File,
+    // 全録音を書き出す WAV ファイル。null なら、ファイルは作らない(音量・イベントの解析だけを行う。既定)
+    private val outFile: File?,
     // 1秒分の音量がそろうたびに、録音スレッド上で呼ばれる(重い処理は入れない)
     private val onSecond: (SecondLoudness) -> Unit = {},
     // 音声イベントが確定するたびに、録音スレッド上で呼ばれる(重い処理は入れない)
@@ -37,6 +38,9 @@ class WavRecorder(
         private const val BYTES_PER_SECOND = WavFormat.BYTES_PER_SECOND
         private const val HEADER_SIZE = WavFormat.HEADER_SIZE
         private const val FRAME_MS = 100L // 1 フレーム(readBuf)の長さ
+
+        // ファイルを作らないときの、何もしない Closeable(use のために必要)
+        private val NoFile = java.io.Closeable {}
     }
 
     @Volatile private var running = false
@@ -75,7 +79,7 @@ class WavRecorder(
         audioRecord = record
         registerSilenceCallback(record)
 
-        outFile.parentFile?.mkdirs()
+        outFile?.parentFile?.mkdirs()
         running = true
         thread = Thread({ runLoop(record, internalBufSize) }, "wav-recorder").also { it.start() }
     }
@@ -126,10 +130,12 @@ class WavRecorder(
         val detector = EventDetector()
 
         try {
-            RandomAccessFile(outFile, "rw").use { raf ->
-                raf.setLength(0)
+            // 全録音を残さないときは、ファイルを開かない(raf が null)。解析は、ファイルの有無と関係なく行う
+            (outFile?.let { RandomAccessFile(it, "rw") } ?: NoFile).use { closeable ->
+                val raf = closeable as? RandomAccessFile // 全録音を書き出さないときは null
                 // データ長がまだ分からないので、サイズ欄 0 のヘッダを先頭に置いて始める
-                raf.write(WavFormat.header(0))
+                raf?.setLength(0)
+                raf?.write(WavFormat.header(0))
                 var micOpen = false
                 val silence = ByteArray(readBuf.size) // 一時停止中に流す無音
 
@@ -154,7 +160,7 @@ class WavRecorder(
                     val n = record.read(readBuf, 0, readBuf.size)
                     if (n < 0) throw IllegalStateException("AudioRecord.read error: $n")
                     if (n == 0) continue
-                    raf.write(readBuf, 0, n)
+                    raf?.write(readBuf, 0, n)
                     val db = Loudness.frameDb(readBuf, n)
                     onFrame(db)
                     aggregator.add(db)?.let(onSecond)
@@ -163,13 +169,13 @@ class WavRecorder(
 
                     // 約1秒ごとにヘッダのサイズ欄を更新。アプリが kill されても再生可能なファイルが残る
                     if (dataBytes - lastHeaderUpdate >= BYTES_PER_SECOND) {
-                        updateHeaderSizes(raf, dataBytes)
+                        raf?.let { updateHeaderSizes(it, dataBytes) }
                         lastHeaderUpdate = dataBytes
                     }
                 }
                 // 正常停止: イベントの途中なら確定させ、最終的なサイズをヘッダに書く
                 detector.flush()?.let(onEvent)
-                updateHeaderSizes(raf, dataBytes)
+                raf?.let { updateHeaderSizes(it, dataBytes) }
             }
         } catch (t: Throwable) {
             Log.e(TAG, "recording failed", t)

@@ -32,6 +32,8 @@ data class Settings(
     val units: Units = Units.METRIC,
     // メーカー独自のバックグラウンド動作の設定を、ユーザーが済ませたと申告したか(状態を端末から判定できないため)
     val backgroundSetupDone: Boolean = false,
+    // 全録音の WAV を残すか(PLAN 決定 #2)。既定はオフ: 音声は、検出したクリップだけを残す(容量のため)
+    val keepFullRecording: Boolean = false,
 ) {
     val goalSleepMs: Long get() = goalSleepMin * 60_000L
 }
@@ -78,6 +80,7 @@ object AppSettings {
             weightKg = if (p.contains("weight_kg")) p.getFloat("weight_kg", 0f) else null,
             units = enumOf("units", Units.entries.toTypedArray(), Units.METRIC),
             backgroundSetupDone = p.getBoolean("bg_setup_done", false),
+            keepFullRecording = p.getBoolean("keep_full_recording", false),
         )
     }
 
@@ -95,6 +98,7 @@ object AppSettings {
             s.weightKg?.let { putFloat("weight_kg", it) } ?: remove("weight_kg")
             putString("units", s.units.name)
             putBoolean("bg_setup_done", s.backgroundSetupDone)
+            putBoolean("keep_full_recording", s.keepFullRecording)
         }.apply()
     }
 }

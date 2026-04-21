@@ -131,8 +131,11 @@ class RecordingService : Service() {
         // サービスは 1 つだけなので、起動時点で残っている RECORDING は必ず前回の残骸。
         runBlocking(Dispatchers.IO) { InterruptionDetector.markStale(applicationContext, store, force = true) }
 
-        val name = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date(startedAt))
-        val file = File(getExternalFilesDir(null), "recordings/rec_$name.wav")
+        // 全録音の WAV は、設定でオンのときだけ書き出す(既定はオフ。8 時間で約 0.9 GB になるため)
+        val file: File? = if (AppSettings.state.value.keepFullRecording) {
+            val name = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date(startedAt))
+            File(getExternalFilesDir(null), "recordings/rec_$name.wav")
+        } else null
 
         val rec = WavRecorder(
             file,
@@ -159,7 +162,7 @@ class RecordingService : Service() {
 
         // DB への書き込みは Room の決まりでメインスレッドでは行えない。
         // 一瞬で終わるので、IO スレッドで実行してここで結果を待つ。
-        val id = runBlocking(Dispatchers.IO) { store.start(startedAt, file.absolutePath) }
+        val id = runBlocking(Dispatchers.IO) { store.start(startedAt, file?.absolutePath ?: "") }
         sessionId = id
         // 睡眠前のメモとタグ(FR-2.10)。画面で検証済みだが、念のためここでも検証して重複・超過を除く
         val tags = mutableListOf<String>()

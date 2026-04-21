@@ -10,6 +10,17 @@ object DataCleaner {
     fun cacheSize(context: Context): Long =
         context.cacheDir.walkTopDown().filter { it.isFile }.sumOf { it.length() }
 
+    private fun recordingsDir(context: Context) = File(context.getExternalFilesDir(null), "recordings")
+
+    /** 保存されている全録音(WAV)の大きさ(バイト)。 */
+    fun fullRecordingsSize(context: Context): Long =
+        recordingsDir(context).walkTopDown().filter { it.isFile }.sumOf { it.length() }
+
+    /** 保存されている全録音(WAV)だけを削除する。検出したクリップ、音量、スコアなどは残る。 */
+    fun deleteFullRecordings(context: Context) {
+        recordingsDir(context).deleteRecursively()
+    }
+
     fun clearCache(context: Context) {
         context.cacheDir.listFiles()?.forEach { it.deleteRecursively() }
     }

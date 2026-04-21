@@ -20,6 +20,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -114,6 +115,30 @@ fun SettingsScreen(onOpenPermissions: () -> Unit) {
                     Toast.makeText(context, R.string.cache_cleared, Toast.LENGTH_SHORT).show()
                 }
             }) { Text(stringResource(R.string.clear)) }
+        }
+
+        // 全録音(WAV)を残すか。既定はオフ(容量のため)。検出したクリップ、音量、スコアは、オフでも残る
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
+            Column(Modifier.weight(1f)) {
+                Text(stringResource(R.string.setting_keep_full))
+                Text(stringResource(R.string.setting_keep_full_note), style = MaterialTheme.typography.labelSmall)
+            }
+            Switch(checked = settings.keepFullRecording, onCheckedChange = { c -> change { it.copy(keepFullRecording = c) } })
+        }
+        var fullBytes by remember { mutableStateOf(0L) }
+        LaunchedEffect(Unit) { fullBytes = withContext(Dispatchers.IO) { DataCleaner.fullRecordingsSize(context) } }
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
+            Column(Modifier.weight(1f)) {
+                Text(stringResource(R.string.setting_delete_full))
+                Text(stringResource(R.string.full_size, Formatter.formatFileSize(context, fullBytes)), style = MaterialTheme.typography.labelSmall)
+            }
+            OutlinedButton(enabled = fullBytes > 0 && !recording, onClick = {
+                scope.launch {
+                    withContext(Dispatchers.IO) { DataCleaner.deleteFullRecordings(context) }
+                    fullBytes = 0
+                    Toast.makeText(context, R.string.full_deleted, Toast.LENGTH_SHORT).show()
+                }
+            }) { Text(stringResource(R.string.delete)) }
         }
 
         var confirmDeleteAll by remember { mutableStateOf(false) }
