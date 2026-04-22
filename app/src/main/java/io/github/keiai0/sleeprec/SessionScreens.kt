@@ -434,7 +434,8 @@ private fun SnoreCard(snore: SnoreSummary) {
     SectionCard(title = stringResource(R.string.snore_title)) {
         InfoRow(stringResource(R.string.snore_count_label), stringResource(R.string.metric_times, snore.count))
         InfoRow(stringResource(R.string.snore_total_label), formatDurationJa(snore.totalMs))
-        InfoRow(stringResource(R.string.snore_db_label), "%.1f / %.1f dBFS".format(snore.maxDb, snore.avgDb))
+        InfoRow(stringResource(R.string.snore_max_db_label), "%.1f dBFS".format(snore.maxDb))
+        InfoRow(stringResource(R.string.snore_avg_db_label), "%.1f dBFS".format(snore.avgDb))
         Text(stringResource(R.string.snore_level_title), style = MaterialTheme.typography.titleSmall)
         androidx.compose.foundation.layout.FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             SnoreLevel.entries.forEach { lv ->

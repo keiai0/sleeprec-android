@@ -194,6 +194,8 @@
 
     <string name="snore_total_label">合計時間</string>
 
+    <string name="snore_max_db_label">最大音量</string>
+    <string name="snore_avg_db_label">平均音量</string>
     <string name="snore_db_label">音量(最大 / 平均)</string>
 
     <string name="snore_level_title">強度ごとの回数</string>
