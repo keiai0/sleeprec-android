@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -73,26 +74,31 @@ fun StatsScreen() {
         nights = withContext(Dispatchers.IO) { StatsLoader.load(store, period) }
     }
 
-    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Text(stringResource(R.string.tab_stats), style = MaterialTheme.typography.headlineSmall)
+    Column(
+        Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(Spacing.screen),
+        verticalArrangement = Arrangement.spacedBy(Spacing.cards),
+    ) {
+        PageTitle(stringResource(R.string.tab_stats))
 
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            FilterChip(selected = kind == PeriodKind.WEEK, onClick = { kindName = PeriodKind.WEEK.name; anchorDay = LocalDate.now().toEpochDay() }, label = { Text(stringResource(R.string.period_week)) })
-            FilterChip(selected = kind == PeriodKind.MONTH, onClick = { kindName = PeriodKind.MONTH.name; anchorDay = LocalDate.now().toEpochDay() }, label = { Text(stringResource(R.string.period_month)) })
-        }
-
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-            TextButton(onClick = { anchorDay = period.previous().start.toEpochDay() }) { Text(stringResource(R.string.period_prev)) }
-            Text(periodLabel(period), style = MaterialTheme.typography.titleMedium)
-            // 今の期間より先には進めない
-            TextButton(enabled = period.end < LocalDate.now(), onClick = { anchorDay = period.next().start.toEpochDay() }) { Text(stringResource(R.string.period_next)) }
+        // 期間の選択(週 / 月)と、前後への移動
+        SectionCard {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                FilterChip(selected = kind == PeriodKind.WEEK, onClick = { kindName = PeriodKind.WEEK.name; anchorDay = LocalDate.now().toEpochDay() }, label = { Text(stringResource(R.string.period_week)) })
+                FilterChip(selected = kind == PeriodKind.MONTH, onClick = { kindName = PeriodKind.MONTH.name; anchorDay = LocalDate.now().toEpochDay() }, label = { Text(stringResource(R.string.period_month)) })
+            }
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                TextButton(onClick = { anchorDay = period.previous().start.toEpochDay() }) { Text(stringResource(R.string.period_prev)) }
+                Text(periodLabel(period), style = MaterialTheme.typography.titleMedium)
+                // 今の期間より先には進めない
+                TextButton(enabled = period.end < LocalDate.now(), onClick = { anchorDay = period.next().start.toEpochDay() }) { Text(stringResource(R.string.period_next)) }
+            }
         }
 
         val list = nights
         if (list != null) {
             val stats = PeriodStats.of(list, period)
             if (stats.nights == 0) {
-                Text(stringResource(R.string.stats_empty), modifier = Modifier.padding(top = 16.dp))
+                SectionCard { MutedText(stringResource(R.string.stats_empty)) }
             } else {
                 // 画面に出ている集計とグラフを、そのまま画像にする(FR-5.4)
                 val layer = rememberGraphicsLayer()
@@ -105,13 +111,14 @@ fun StatsScreen() {
                             drawLayer(layer)
                         }
                         .background(background)
-                        .padding(8.dp),
+                        .padding(vertical = 8.dp),
+                    verticalArrangement = Arrangement.spacedBy(Spacing.cards),
                 ) {
-                    Text(stringResource(R.string.export_image_title, periodLabel(period)), style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(bottom = 8.dp))
+                    Text(stringResource(R.string.export_image_title, periodLabel(period)), style = MaterialTheme.typography.titleMedium)
                     StatsContent(period, stats)
                 }
             }
-            Text(stringResource(R.string.stats_note), style = MaterialTheme.typography.labelSmall)
+            ExpandableNote(stringResource(R.string.stats_note_summary), stringResource(R.string.stats_note))
         }
     }
 }
@@ -154,53 +161,73 @@ private fun periodLabel(p: StatsPeriod): String = when (p.kind) {
     PeriodKind.MONTH -> "%d年%d月".format(p.start.year, p.start.monthValue)
 }
 
-/** 集計のカードとグラフ。 */
+/** 集計と、日ごとのグラフ。話題ごとに 1 枚のカード: 集計 / いびき / 睡眠時間 / スコア。 */
 @Composable
 fun StatsContent(period: StatsPeriod, stats: PeriodStats) {
-    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        val goalMin = AppSettings.state.value.goalSleepMin
-        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            StatCard(stringResource(R.string.stat_avg_sleep), stats.avgTstMin?.let { fmtHM(it) } ?: "-", stringResource(R.string.stat_goal, fmtHM(goalMin)), Modifier.weight(1f))
-            StatCard(
-                stringResource(R.string.stat_avg_score), stats.avgScore?.toString() ?: "-",
-                stats.avgScore?.let { stringResource(bandLabel(SleepScore.bandOf(it))) } ?: stringResource(R.string.stat_no_score), Modifier.weight(1f),
+    val goalMin = AppSettings.state.value.goalSleepMin
+    Column(verticalArrangement = Arrangement.spacedBy(Spacing.cards)) {
+        SectionCard(title = stringResource(R.string.stats_summary_title)) {
+            StatRow(
+                Stat(stringResource(R.string.stat_avg_sleep), stats.avgTstMin?.let { fmtHM(it) } ?: "-", stringResource(R.string.stat_goal, fmtHM(goalMin))),
+                Stat(
+                    stringResource(R.string.stat_avg_score), stats.avgScore?.toString() ?: "-",
+                    stats.avgScore?.let { stringResource(bandLabel(SleepScore.bandOf(it))) } ?: stringResource(R.string.stat_no_score),
+                ),
+            )
+            StatRow(
+                Stat(stringResource(R.string.stat_avg_bed), stats.avgBedMinuteOfDay?.let { TimeMath.format(it) } ?: "-"),
+                Stat(stringResource(R.string.stat_avg_wake), stats.avgWakeMinuteOfDay?.let { TimeMath.format(it) } ?: "-"),
+            )
+            StatRow(
+                Stat(stringResource(R.string.stat_nights), stringResource(R.string.stat_nights_value, stats.nights, period.days)),
+                Stat(stringResource(R.string.stat_efficiency), stats.avgEfficiency?.let { "%.0f%%".format(it * 100) } ?: "-"),
             )
         }
-        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            StatCard(stringResource(R.string.stat_avg_bed), stats.avgBedMinuteOfDay?.let { TimeMath.format(it) } ?: "-", null, Modifier.weight(1f))
-            StatCard(stringResource(R.string.stat_avg_wake), stats.avgWakeMinuteOfDay?.let { TimeMath.format(it) } ?: "-", null, Modifier.weight(1f))
-        }
-        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            StatCard(
-                stringResource(R.string.stat_avg_snore),
-                stats.avgSnoreCount?.let { stringResource(R.string.stat_snore_value, it) } ?: "-",
-                stats.avgSnoreMs?.let { stringResource(R.string.stat_snore_time, fmtMs(it)) }, Modifier.weight(1f),
+        SectionCard(title = stringResource(R.string.stats_snore_title)) {
+            StatRow(
+                Stat(stringResource(R.string.stat_avg_snore), stats.avgSnoreCount?.let { stringResource(R.string.stat_snore_value, it) } ?: "-", stringResource(R.string.stat_snore_per_night)),
+                Stat(stringResource(R.string.stat_avg_snore_time), stats.avgSnoreMs?.let { fmtMs(it) } ?: "-", stringResource(R.string.stat_snore_per_night)),
             )
-            StatCard(stringResource(R.string.stat_max_db), stats.maxDb?.let { "%.1f".format(it) } ?: "-", stringResource(R.string.stat_max_db_note), Modifier.weight(1f))
+            StatRow(
+                Stat(stringResource(R.string.stat_max_db), stats.maxDb?.let { "%.1f".format(it) } ?: "-", stringResource(R.string.stat_max_db_note)),
+                null,
+            )
         }
-        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            StatCard(stringResource(R.string.stat_nights), stringResource(R.string.stat_nights_value, stats.nights, period.days), null, Modifier.weight(1f))
-            StatCard(stringResource(R.string.stat_efficiency), stats.avgEfficiency?.let { "%.0f%%".format(it * 100) } ?: "-", null, Modifier.weight(1f))
+        SectionCard(title = stringResource(R.string.chart_sleep_title)) {
+            BarChart(
+                values = stats.points.map { it.tstMin?.let { m -> m / 60f } },
+                labels = xLabels(period),
+                max = 10f,
+                goal = goalMin / 60f,
+                goalLabel = stringResource(R.string.chart_goal_label),
+                axisLabel = "10h",
+            )
         }
+        SectionCard(title = stringResource(R.string.chart_score_title)) {
+            BarChart(
+                values = stats.points.map { it.score?.toFloat() },
+                labels = xLabels(period),
+                max = 100f,
+                goal = null,
+                goalLabel = "",
+                axisLabel = "100",
+            )
+        }
+    }
+}
 
-        Text(stringResource(R.string.chart_sleep_title), style = MaterialTheme.typography.titleMedium)
-        BarChart(
-            values = stats.points.map { it.tstMin?.let { m -> m / 60f } },
-            labels = xLabels(period),
-            max = 10f,
-            goal = goalMin / 60f,
-            goalLabel = stringResource(R.string.chart_goal_label),
-            axisLabel = "10h",
-        )
-        Text(stringResource(R.string.chart_score_title), style = MaterialTheme.typography.titleMedium)
-        BarChart(
-            values = stats.points.map { it.score?.toFloat() },
-            labels = xLabels(period),
-            max = 100f,
-            goal = null,
-            goalLabel = "",
-            axisLabel = "100",
-        )
+private class Stat(val label: String, val value: String, val sub: String? = null)
+
+/** 2 つのタイルを、同じ高さで横に並べる。 */
+@Composable
+private fun StatRow(a: Stat, b: Stat?) {
+    androidx.compose.foundation.layout.Row(
+        Modifier.height(androidx.compose.foundation.layout.IntrinsicSize.Min),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        MetricTile(a.label, a.value, Modifier.weight(1f).fillMaxHeight(), a.sub)
+        if (b != null) MetricTile(b.label, b.value, Modifier.weight(1f).fillMaxHeight(), b.sub)
+        else androidx.compose.foundation.layout.Spacer(Modifier.weight(1f))
     }
 }
 
@@ -210,17 +237,6 @@ private fun xLabels(p: StatsPeriod): List<String?> = (0 until p.days).map { i ->
         PeriodKind.WEEK -> WEEKDAY_LABELS.getValue(d.dayOfWeek)
         // 月は、混み合わないよう、1・5・10・15… だけにラベルを付ける
         PeriodKind.MONTH -> if (d.dayOfMonth == 1 || d.dayOfMonth % 5 == 0) d.dayOfMonth.toString() else null
-    }
-}
-
-@Composable
-private fun StatCard(title: String, value: String, sub: String?, modifier: Modifier = Modifier) {
-    Surface(modifier, shape = RoundedCornerShape(16.dp), color = MaterialTheme.colorScheme.surfaceContainer) {
-        Column(Modifier.padding(16.dp)) {
-            Text(title, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Text(value, style = MaterialTheme.typography.headlineSmall)
-            if (sub != null) Text(sub, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
     }
 }
 

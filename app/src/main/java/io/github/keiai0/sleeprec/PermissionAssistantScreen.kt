@@ -12,6 +12,9 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -35,7 +38,7 @@ import androidx.compose.ui.unit.dp
 /**
  * 権限アシスタント(FR-8.4): 一晩の計測が止められないための設定を、状態つきで案内する。
  * 通知・マイク・バッテリー最適化は状態を判定できる。メーカー独自のバックグラウンド動作の設定は判定できないので、
- * 手順を案内し、設定したら自分でチェックを付ける。
+ * 手順を番号つきで案内し、設定したら自分でチェックを付ける。
  */
 @Composable
 fun PermissionAssistantScreen(onBack: () -> Unit) {
@@ -43,72 +46,71 @@ fun PermissionAssistantScreen(onBack: () -> Unit) {
     val status = rememberDeviceStatus()
     val settings by AppSettings.state.collectAsState()
     val vendor = remember(Build.MANUFACTURER, Build.BRAND) { VendorGuide.vendorOf(Build.MANUFACTURER, Build.BRAND) }
+    val ok = stringResource(R.string.status_ok)
+    val check = stringResource(R.string.status_check)
 
-    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    Column(
+        Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = Spacing.screen),
+        verticalArrangement = Arrangement.spacedBy(Spacing.cards),
+    ) {
         TextButton(onClick = onBack) { Text(stringResource(R.string.back)) }
-        Text(stringResource(R.string.pa_title), style = MaterialTheme.typography.headlineSmall)
-        Text(stringResource(R.string.pa_intro), style = MaterialTheme.typography.bodyMedium)
+        PageTitle(stringResource(R.string.pa_title))
+        MutedText(stringResource(R.string.pa_intro))
 
-        PermissionCard(
-            title = stringResource(R.string.pa_notifications),
-            ok = status.notificationsGranted,
-            okText = stringResource(R.string.pa_notifications_ok),
-            ngText = stringResource(R.string.pa_notifications_ng),
-            actionLabel = stringResource(R.string.pf_open_notification_settings),
-            onAction = {
-                context.startActivity(Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName))
-            },
-        )
-        PermissionCard(
-            title = stringResource(R.string.pa_mic),
-            ok = status.micGranted,
-            okText = stringResource(R.string.pa_mic_ok),
-            ngText = stringResource(R.string.pa_mic_ng),
-            actionLabel = stringResource(R.string.pa_open_app_info),
-            onAction = { openAppInfo(context) },
-        )
-        PermissionCard(
-            title = stringResource(R.string.pa_battery_opt),
-            ok = status.batteryOptimizationIgnored,
-            okText = stringResource(R.string.pf_battery_opt_ok),
-            ngText = stringResource(R.string.pf_battery_opt_ng),
-            actionLabel = stringResource(R.string.pf_open_battery_settings),
-            onAction = { context.startActivity(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)) },
-        )
-
-        // メーカー独自の設定。状態は判定できないので、手順を案内し、設定したら自分でチェックを付ける
-        Surface(Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp), color = MaterialTheme.colorScheme.surfaceContainer) {
-            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(stringResource(R.string.pa_background), style = MaterialTheme.typography.titleMedium)
-                Text(stringResource(R.string.pa_background_device, stringResource(vendor.nameRes)), style = MaterialTheme.typography.labelMedium)
-                Text(stringResource(vendor.guideRes), style = MaterialTheme.typography.bodyMedium)
-                OutlinedButton(onClick = { openVendorSettings(context, vendor) }) { Text(stringResource(R.string.pa_open_device_settings)) }
-                Row(
-                    Modifier.fillMaxWidth().clickable { AppSettings.update(context) { it.copy(backgroundSetupDone = !it.backgroundSetupDone) } },
-                    verticalAlignment = Alignment.CenterVertically,
+        // 状態を判定できる 3 項目は、1 枚のカードにまとめる
+        SectionCard(title = stringResource(R.string.pa_basic_title)) {
+            if (status.notificationsGranted) {
+                StatusRow(stringResource(R.string.pa_notifications), Tone.GOOD, ok, stringResource(R.string.pa_notifications_sub_ok))
+            } else {
+                StatusRow(
+                    stringResource(R.string.pa_notifications), Tone.WARN, check, stringResource(R.string.pa_notifications_sub_ng),
+                    stringResource(R.string.pf_open_settings),
                 ) {
-                    Checkbox(checked = settings.backgroundSetupDone, onCheckedChange = { c -> AppSettings.update(context) { it.copy(backgroundSetupDone = c) } })
-                    Text(stringResource(R.string.pa_background_done))
+                    context.startActivity(Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName))
                 }
-                Text(stringResource(R.string.pa_background_caveat), style = MaterialTheme.typography.labelSmall)
+            }
+            CardDivider()
+            if (status.micGranted) {
+                StatusRow(stringResource(R.string.pa_mic), Tone.GOOD, ok)
+            } else {
+                StatusRow(stringResource(R.string.pa_mic), Tone.WARN, check, stringResource(R.string.pa_mic_sub_ng), stringResource(R.string.pa_open_app_info)) { openAppInfo(context) }
+            }
+            CardDivider()
+            if (status.batteryOptimizationIgnored) {
+                StatusRow(stringResource(R.string.pa_battery_opt), Tone.GOOD, ok, stringResource(R.string.pf_battery_opt_sub_ok))
+            } else {
+                StatusRow(
+                    stringResource(R.string.pa_battery_opt), Tone.WARN, check, stringResource(R.string.pf_battery_opt_sub_ng),
+                    stringResource(R.string.pf_open_settings),
+                ) { context.startActivity(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)) }
             }
         }
-    }
-}
 
-@Composable
-private fun PermissionCard(title: String, ok: Boolean, okText: String, ngText: String, actionLabel: String, onAction: () -> Unit) {
-    Surface(Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp), color = MaterialTheme.colorScheme.surfaceContainer) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Text(title, style = MaterialTheme.typography.titleMedium)
-            // 状態は、色だけでなく、記号と言葉でも示す
-            Text(
-                (if (ok) "✓ " else "! ") + (if (ok) okText else ngText),
-                color = if (ok) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error,
-                style = MaterialTheme.typography.bodyMedium,
-            )
-            if (!ok) OutlinedButton(onClick = onAction) { Text(actionLabel) }
+        // メーカー独自の設定。状態は判定できないので、番号つきの手順で案内し、設定したら自分でチェックを付ける
+        SectionCard(title = stringResource(R.string.pa_background)) {
+            // 手順が、この端末で確認したものか、一般的なものかを、はっきり示す
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (vendor == Vendor.COLOROS) Pill(stringResource(R.string.pa_verified), Tone.GOOD) else Pill(stringResource(R.string.pa_general), Tone.INFO)
+                MutedText(stringResource(R.string.pa_background_device, stringResource(vendor.nameRes)), modifier = Modifier.weight(1f))
+            }
+            stringResource(vendor.guideRes).split("\n").forEachIndexed { i, step ->
+                Row(verticalAlignment = Alignment.Top) {
+                    Text("${i + 1}", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary, modifier = Modifier.width(24.dp))
+                    Text(step, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
+                }
+            }
+            OutlinedButton(onClick = { openVendorSettings(context, vendor) }) { Text(stringResource(R.string.pa_open_device_settings)) }
+            CardDivider()
+            Row(
+                Modifier.fillMaxWidth().clickable { AppSettings.update(context) { it.copy(backgroundSetupDone = !it.backgroundSetupDone) } },
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Checkbox(checked = settings.backgroundSetupDone, onCheckedChange = { c -> AppSettings.update(context) { it.copy(backgroundSetupDone = c) } })
+                Text(stringResource(R.string.pa_background_done), style = MaterialTheme.typography.bodyLarge)
+            }
+            ExpandableNote(stringResource(R.string.pa_caveat_summary), stringResource(R.string.pa_background_caveat))
         }
+        Spacer(Modifier.height(Spacing.screen))
     }
 }
 

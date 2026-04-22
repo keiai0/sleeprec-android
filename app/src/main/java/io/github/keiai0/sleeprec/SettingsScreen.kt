@@ -47,7 +47,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.time.LocalDate
 
-/** 設定タブ(FR-8.1、8.2、8.6)。 */
+/** 設定タブ(FR-8.1、8.2、8.6)。話題ごとに 1 枚のカード: 睡眠 / プロフィール / 権限 / データ。 */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun SettingsScreen(onOpenPermissions: () -> Unit) {
@@ -61,135 +61,139 @@ fun SettingsScreen(onOpenPermissions: () -> Unit) {
     fun change(f: (Settings) -> Settings) = AppSettings.update(context, f)
 
     Column(
-        Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
+        Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(Spacing.screen),
+        verticalArrangement = Arrangement.spacedBy(Spacing.cards),
     ) {
-        Text(stringResource(R.string.tab_settings), style = MaterialTheme.typography.headlineSmall)
+        PageTitle(stringResource(R.string.tab_settings))
 
         // --- 睡眠 ---
-        SectionTitle(R.string.settings_sleep)
-        StepperRow(
-            title = stringResource(R.string.setting_goal),
-            value = stringResource(R.string.duration_hm_long, settings.goalSleepMin / 60, settings.goalSleepMin % 60),
-            onMinus = { change { it.copy(goalSleepMin = SettingsRules.stepGoal(it.goalSleepMin, -1)) } },
-            onPlus = { change { it.copy(goalSleepMin = SettingsRules.stepGoal(it.goalSleepMin, +1)) } },
-        )
-        Text(stringResource(R.string.setting_goal_note), style = MaterialTheme.typography.labelSmall)
-        StepperRow(
-            title = stringResource(R.string.setting_cutoff),
-            value = "%d:00".format(settings.dayCutoffHour),
-            onMinus = { change { it.copy(dayCutoffHour = SettingsRules.stepCutoff(it.dayCutoffHour, -1)) } },
-            onPlus = { change { it.copy(dayCutoffHour = SettingsRules.stepCutoff(it.dayCutoffHour, +1)) } },
-        )
-        Text(stringResource(R.string.setting_cutoff_note), style = MaterialTheme.typography.labelSmall)
-
-        HorizontalDivider(Modifier.padding(vertical = 8.dp))
-
-        // --- プロフィール ---
-        SectionTitle(R.string.settings_profile)
-        Text(stringResource(R.string.profile_note), style = MaterialTheme.typography.labelSmall)
-        ProfileEditor(settings, ::change)
-
-        HorizontalDivider(Modifier.padding(vertical = 8.dp))
-
-        // --- 権限 ---
-        SectionTitle(R.string.settings_permissions)
-        Text(stringResource(R.string.settings_permissions_note), style = MaterialTheme.typography.labelSmall)
-        OutlinedButton(onClick = onOpenPermissions) { Text(stringResource(R.string.pa_title)) }
-
-        HorizontalDivider(Modifier.padding(vertical = 8.dp))
-
-        // --- データ ---
-        SectionTitle(R.string.settings_data)
-        var cacheBytes by remember { mutableStateOf(0L) }
-        LaunchedEffect(Unit) { cacheBytes = withContext(Dispatchers.IO) { DataCleaner.cacheSize(context) } }
-        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
-            Column(Modifier.weight(1f)) {
-                Text(stringResource(R.string.setting_clear_cache))
-                Text(stringResource(R.string.cache_size, Formatter.formatFileSize(context, cacheBytes)), style = MaterialTheme.typography.labelSmall)
-            }
-            OutlinedButton(enabled = cacheBytes > 0, onClick = {
-                scope.launch {
-                    withContext(Dispatchers.IO) { DataCleaner.clearCache(context) }
-                    cacheBytes = 0
-                    Toast.makeText(context, R.string.cache_cleared, Toast.LENGTH_SHORT).show()
-                }
-            }) { Text(stringResource(R.string.clear)) }
-        }
-
-        // 全録音(WAV)を残すか。既定はオフ(容量のため)。検出したクリップ、音量、スコアは、オフでも残る
-        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
-            Column(Modifier.weight(1f)) {
-                Text(stringResource(R.string.setting_keep_full))
-                Text(stringResource(R.string.setting_keep_full_note), style = MaterialTheme.typography.labelSmall)
-            }
-            Switch(checked = settings.keepFullRecording, onCheckedChange = { c -> change { it.copy(keepFullRecording = c) } })
-        }
-        var fullBytes by remember { mutableStateOf(0L) }
-        LaunchedEffect(Unit) { fullBytes = withContext(Dispatchers.IO) { DataCleaner.fullRecordingsSize(context) } }
-        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
-            Column(Modifier.weight(1f)) {
-                Text(stringResource(R.string.setting_delete_full))
-                Text(stringResource(R.string.full_size, Formatter.formatFileSize(context, fullBytes)), style = MaterialTheme.typography.labelSmall)
-            }
-            OutlinedButton(enabled = fullBytes > 0 && !recording, onClick = {
-                scope.launch {
-                    withContext(Dispatchers.IO) { DataCleaner.deleteFullRecordings(context) }
-                    fullBytes = 0
-                    Toast.makeText(context, R.string.full_deleted, Toast.LENGTH_SHORT).show()
-                }
-            }) { Text(stringResource(R.string.delete)) }
-        }
-
-        var confirmDeleteAll by remember { mutableStateOf(false) }
-        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
-            Column(Modifier.weight(1f)) {
-                Text(stringResource(R.string.setting_delete_all))
-                Text(
-                    stringResource(if (recording) R.string.delete_all_blocked else R.string.delete_all_note),
-                    style = MaterialTheme.typography.labelSmall,
-                )
-            }
-            OutlinedButton(enabled = !recording, onClick = { confirmDeleteAll = true }) {
-                Text(stringResource(R.string.delete), color = MaterialTheme.colorScheme.error)
-            }
-        }
-        if (confirmDeleteAll) {
-            AlertDialog(
-                onDismissRequest = { confirmDeleteAll = false },
-                title = { Text(stringResource(R.string.delete_all_title)) },
-                text = { Text(stringResource(R.string.delete_all_body)) },
-                confirmButton = {
-                    TextButton(onClick = {
-                        confirmDeleteAll = false
-                        scope.launch(Dispatchers.IO + NonCancellable) {
-                            DataCleaner.deleteAll(context, store)
-                            withContext(Dispatchers.Main) { Toast.makeText(context, R.string.delete_all_done, Toast.LENGTH_LONG).show() }
-                        }
-                    }) { Text(stringResource(R.string.delete_all_confirm), color = MaterialTheme.colorScheme.error) }
-                },
-                dismissButton = { TextButton(onClick = { confirmDeleteAll = false }) { Text(stringResource(R.string.cancel)) } },
+        SectionCard(title = stringResource(R.string.settings_sleep)) {
+            StepperRow(
+                title = stringResource(R.string.setting_goal),
+                note = stringResource(R.string.setting_goal_note),
+                value = stringResource(R.string.duration_hm_long, settings.goalSleepMin / 60, settings.goalSleepMin % 60),
+                onMinus = { change { it.copy(goalSleepMin = SettingsRules.stepGoal(it.goalSleepMin, -1)) } },
+                onPlus = { change { it.copy(goalSleepMin = SettingsRules.stepGoal(it.goalSleepMin, +1)) } },
+            )
+            CardDivider()
+            StepperRow(
+                title = stringResource(R.string.setting_cutoff),
+                note = stringResource(R.string.setting_cutoff_note),
+                value = "%d:00".format(settings.dayCutoffHour),
+                onMinus = { change { it.copy(dayCutoffHour = SettingsRules.stepCutoff(it.dayCutoffHour, -1)) } },
+                onPlus = { change { it.copy(dayCutoffHour = SettingsRules.stepCutoff(it.dayCutoffHour, +1)) } },
             )
         }
 
-        if (debuggable) {
-            HorizontalDivider(Modifier.padding(vertical = 8.dp))
-            DebugTools(store)
+        // --- プロフィール ---
+        SectionCard(title = stringResource(R.string.settings_profile)) {
+            MutedText(stringResource(R.string.profile_note))
+            ProfileEditor(settings, ::change)
         }
+
+        // --- 権限 ---
+        SectionCard(title = stringResource(R.string.settings_permissions)) {
+            SettingRow(
+                title = stringResource(R.string.pa_title),
+                sub = stringResource(R.string.settings_permissions_note),
+            ) { OutlinedButton(onClick = onOpenPermissions) { Text(stringResource(R.string.open)) } }
+        }
+
+        // --- データ ---
+        SectionCard(title = stringResource(R.string.settings_data)) {
+            // 全録音(WAV)を残すか。既定はオフ(容量のため)。検出したクリップ、音量、スコアは、オフでも残る
+            SettingRow(
+                title = stringResource(R.string.setting_keep_full),
+                sub = stringResource(R.string.setting_keep_full_note),
+            ) { Switch(checked = settings.keepFullRecording, onCheckedChange = { c -> change { it.copy(keepFullRecording = c) } }) }
+            ExpandableNote(stringResource(R.string.keep_full_more_summary), stringResource(R.string.keep_full_more_detail))
+            CardDivider()
+
+            var fullBytes by remember { mutableStateOf(0L) }
+            LaunchedEffect(Unit) { fullBytes = withContext(Dispatchers.IO) { DataCleaner.fullRecordingsSize(context) } }
+            SettingRow(
+                title = stringResource(R.string.setting_delete_full),
+                sub = stringResource(R.string.full_size, Formatter.formatFileSize(context, fullBytes)),
+            ) {
+                OutlinedButton(enabled = fullBytes > 0 && !recording, onClick = {
+                    scope.launch {
+                        withContext(Dispatchers.IO) { DataCleaner.deleteFullRecordings(context) }
+                        fullBytes = 0
+                        Toast.makeText(context, R.string.full_deleted, Toast.LENGTH_SHORT).show()
+                    }
+                }) { Text(stringResource(R.string.delete)) }
+            }
+            CardDivider()
+
+            var cacheBytes by remember { mutableStateOf(0L) }
+            LaunchedEffect(Unit) { cacheBytes = withContext(Dispatchers.IO) { DataCleaner.cacheSize(context) } }
+            SettingRow(
+                title = stringResource(R.string.setting_clear_cache),
+                sub = stringResource(R.string.cache_size, Formatter.formatFileSize(context, cacheBytes)),
+            ) {
+                OutlinedButton(enabled = cacheBytes > 0, onClick = {
+                    scope.launch {
+                        withContext(Dispatchers.IO) { DataCleaner.clearCache(context) }
+                        cacheBytes = 0
+                        Toast.makeText(context, R.string.cache_cleared, Toast.LENGTH_SHORT).show()
+                    }
+                }) { Text(stringResource(R.string.clear)) }
+            }
+            CardDivider()
+
+            var confirmDeleteAll by remember { mutableStateOf(false) }
+            SettingRow(
+                title = stringResource(R.string.setting_delete_all),
+                sub = stringResource(if (recording) R.string.delete_all_blocked else R.string.delete_all_note),
+            ) {
+                OutlinedButton(enabled = !recording, onClick = { confirmDeleteAll = true }) {
+                    Text(stringResource(R.string.delete), color = MaterialTheme.colorScheme.error)
+                }
+            }
+            if (confirmDeleteAll) {
+                AlertDialog(
+                    onDismissRequest = { confirmDeleteAll = false },
+                    title = { Text(stringResource(R.string.delete_all_title)) },
+                    text = { Text(stringResource(R.string.delete_all_body)) },
+                    confirmButton = {
+                        TextButton(onClick = {
+                            confirmDeleteAll = false
+                            scope.launch(Dispatchers.IO + NonCancellable) {
+                                DataCleaner.deleteAll(context, store)
+                                withContext(Dispatchers.Main) { Toast.makeText(context, R.string.delete_all_done, Toast.LENGTH_LONG).show() }
+                            }
+                        }) { Text(stringResource(R.string.delete_all_confirm), color = MaterialTheme.colorScheme.error) }
+                    },
+                    dismissButton = { TextButton(onClick = { confirmDeleteAll = false }) { Text(stringResource(R.string.cancel)) } },
+                )
+            }
+        }
+
+        if (debuggable) SectionCard(title = stringResource(R.string.debug_tools)) { DebugTools(store) }
     }
 }
 
+/** 「名前 + 1 行の補足」と、右側の操作(ボタン・スイッチ)の 1 行。 */
 @Composable
-private fun SectionTitle(res: Int) = Text(stringResource(res), style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = 4.dp))
+private fun SettingRow(title: String, sub: String?, trailing: @Composable () -> Unit) {
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        Column(Modifier.weight(1f).padding(end = 12.dp)) {
+            Text(title, style = MaterialTheme.typography.bodyLarge)
+            if (sub != null) MutedText(sub)
+        }
+        trailing()
+    }
+}
 
-/** 「− 値 +」で値を変える。ラベルは 1 行目、操作は 2 行目に分けて、文字が折り返さないようにする。 */
+/** 「− 値 +」で値を変える。名前と補足は 1 行目、操作は 2 行目に分けて、文字が折り返さないようにする。 */
 @Composable
-private fun StepperRow(title: String, value: String, onMinus: () -> Unit, onPlus: () -> Unit) {
+private fun StepperRow(title: String, note: String, value: String, onMinus: () -> Unit, onPlus: () -> Unit) {
     Column(Modifier.fillMaxWidth()) {
         Text(title, style = MaterialTheme.typography.bodyLarge)
-        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        MutedText(note)
+        Row(Modifier.fillMaxWidth().padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
             OutlinedButton(onClick = onMinus) { Text("−") }
-            Text(value, style = MaterialTheme.typography.titleMedium, textAlign = TextAlign.Center, modifier = Modifier.weight(1f))
+            Text(value, style = MaterialTheme.typography.titleLarge, textAlign = TextAlign.Center, modifier = Modifier.weight(1f))
             OutlinedButton(onClick = onPlus) { Text("＋") }
         }
     }

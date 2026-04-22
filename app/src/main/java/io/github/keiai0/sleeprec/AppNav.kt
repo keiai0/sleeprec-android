@@ -134,7 +134,6 @@ internal fun DebugTools(store: io.github.keiai0.sleeprec.data.SessionStore) {
     var message by remember { mutableStateOf<Int?>(null) }
 
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        Text(stringResource(R.string.debug_tools), style = MaterialTheme.typography.titleMedium)
         TextButton(enabled = !busy, onClick = {
             busy = true
             message = R.string.debug_creating
