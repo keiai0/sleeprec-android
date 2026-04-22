@@ -70,13 +70,13 @@ fun OnboardingScreen() {
 
     // 背景と文字色は、Surface が決める(Scaffold の外では、文字色が既定の黒になってしまう)
     Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background, contentColor = MaterialTheme.colorScheme.onBackground) {
-    Column(Modifier.fillMaxSize().safeDrawingPadding().padding(horizontal = 24.dp, vertical = 16.dp)) {
+    Column(Modifier.fillMaxSize().safeDrawingPadding().padding(horizontal = Spacing.screen, vertical = 16.dp)) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
             Text(stringResource(R.string.ob_step, step + 1, STEPS), style = MaterialTheme.typography.labelLarge)
             if (step < STEPS - 1) TextButton(onClick = { finish(answered = false) }) { Text(stringResource(R.string.ob_skip)) }
         }
 
-        Column(Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        Column(Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(Spacing.cards)) {
             when (step) {
                 0 -> PurposeStep(purposes) { purposes = it }
                 1 -> TimeStep(bed, wake, span, spanOk, onBed = { bed = it }, onWake = { wake = it })
@@ -103,16 +103,17 @@ fun OnboardingScreen() {
 @Composable
 private fun PurposeStep(selected: Set<Purpose>, onChange: (Set<Purpose>) -> Unit) {
     Text(stringResource(R.string.ob_welcome), style = MaterialTheme.typography.headlineMedium)
-    Text(stringResource(R.string.ob_welcome_body))
-    Text(stringResource(R.string.ob_purpose_title), style = MaterialTheme.typography.titleMedium)
-    Text(stringResource(R.string.ob_purpose_hint), style = MaterialTheme.typography.labelMedium)
-    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Purpose.entries.forEach { p ->
-            FilterChip(
-                selected = p in selected,
-                onClick = { onChange(if (p in selected) selected - p else selected + p) },
-                label = { Text(stringResource(p.labelRes)) },
-            )
+    MutedText(stringResource(R.string.ob_welcome_body))
+    SectionCard(title = stringResource(R.string.ob_purpose_title)) {
+        MutedText(stringResource(R.string.ob_purpose_hint))
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Purpose.entries.forEach { p ->
+                FilterChip(
+                    selected = p in selected,
+                    onClick = { onChange(if (p in selected) selected - p else selected + p) },
+                    label = { Text(stringResource(p.labelRes)) },
+                )
+            }
         }
     }
 }
@@ -123,42 +124,58 @@ private fun TimeStep(bed: Int, wake: Int, span: Int, spanOk: Boolean, onBed: (In
     fun pick(current: Int, onPicked: (Int) -> Unit) {
         TimePickerDialog(context, { _, h, m -> onPicked(h * 60 + m) }, current / 60, current % 60, true).show()
     }
-    Text(stringResource(R.string.ob_time_title), style = MaterialTheme.typography.headlineSmall)
-    Text(stringResource(R.string.ob_time_body))
-    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
-        Text(stringResource(R.string.ob_bedtime), style = MaterialTheme.typography.titleMedium)
-        OutlinedButton(onClick = { pick(bed, onBed) }) { Text(TimeMath.format(bed), style = MaterialTheme.typography.titleLarge) }
+    Text(stringResource(R.string.ob_time_title), style = MaterialTheme.typography.headlineMedium)
+    MutedText(stringResource(R.string.ob_time_body))
+    SectionCard {
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
+            Text(stringResource(R.string.ob_bedtime), style = MaterialTheme.typography.titleMedium)
+            OutlinedButton(onClick = { pick(bed, onBed) }) { Text(TimeMath.format(bed), style = MaterialTheme.typography.titleLarge) }
+        }
+        CardDivider()
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
+            Text(stringResource(R.string.ob_waketime), style = MaterialTheme.typography.titleMedium)
+            OutlinedButton(onClick = { pick(wake, onWake) }) { Text(TimeMath.format(wake), style = MaterialTheme.typography.titleLarge) }
+        }
+        CardDivider()
+        if (spanOk) {
+            InfoRow(stringResource(R.string.ob_span_label), stringResource(R.string.duration_hm_long, span / 60, span % 60))
+            MutedText(stringResource(R.string.ob_span_goal))
+        } else {
+            // 1〜20 時間でないときは、理由を示して、次へ進ませない
+            Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Pill(stringResource(R.string.status_check), Tone.WARN)
+                Text(stringResource(R.string.ob_span_invalid), style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
+            }
+        }
     }
-    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
-        Text(stringResource(R.string.ob_waketime), style = MaterialTheme.typography.titleMedium)
-        OutlinedButton(onClick = { pick(wake, onWake) }) { Text(TimeMath.format(wake), style = MaterialTheme.typography.titleLarge) }
-    }
-    if (spanOk) {
-        Text(stringResource(R.string.ob_span, span / 60, span % 60), style = MaterialTheme.typography.titleMedium)
-        Text(stringResource(R.string.ob_span_goal), style = MaterialTheme.typography.labelMedium)
-    } else {
-        // 1〜20 時間でないときは、理由を示して、次へ進ませない
-        Text(stringResource(R.string.ob_span_invalid), color = MaterialTheme.colorScheme.error)
-    }
-    Text(stringResource(R.string.ob_reminder_note), style = MaterialTheme.typography.labelMedium)
+    MutedText(stringResource(R.string.ob_reminder_note))
 }
 
 @Composable
 private fun PermissionStep() {
     val status = rememberDeviceStatus()
     val launcher = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { }
-    Text(stringResource(R.string.ob_perm_title), style = MaterialTheme.typography.headlineSmall)
-    Text(stringResource(R.string.ob_perm_body))
+    Text(stringResource(R.string.ob_perm_title), style = MaterialTheme.typography.headlineMedium)
+    MutedText(stringResource(R.string.ob_perm_body))
 
-    Text(stringResource(R.string.pa_mic), style = MaterialTheme.typography.titleMedium)
-    Text(stringResource(R.string.ob_perm_mic))
-    Text(stringResource(R.string.pa_notifications), style = MaterialTheme.typography.titleMedium)
-    Text(stringResource(R.string.ob_perm_notif))
-    Text(stringResource(R.string.ob_perm_storage), style = MaterialTheme.typography.labelMedium)
+    SectionCard {
+        StatusRow(
+            stringResource(R.string.pa_mic), if (status.micGranted) Tone.GOOD else Tone.INFO,
+            stringResource(if (status.micGranted) R.string.status_ok else R.string.status_info),
+            stringResource(R.string.ob_perm_mic),
+        )
+        CardDivider()
+        StatusRow(
+            stringResource(R.string.pa_notifications), if (status.notificationsGranted) Tone.GOOD else Tone.INFO,
+            stringResource(if (status.notificationsGranted) R.string.status_ok else R.string.status_info),
+            stringResource(R.string.ob_perm_notif),
+        )
+        CardDivider()
+        MutedText(stringResource(R.string.ob_perm_storage))
+    }
 
-    val allGranted = status.micGranted && status.notificationsGranted
-    if (allGranted) {
-        Text("✓ " + stringResource(R.string.ob_perm_granted), color = MaterialTheme.colorScheme.primary)
+    if (status.micGranted && status.notificationsGranted) {
+        Pill(stringResource(R.string.ob_perm_granted), Tone.GOOD)
     } else {
         Button(onClick = {
             val perms = buildList {
@@ -166,8 +183,8 @@ private fun PermissionStep() {
                 if (Build.VERSION.SDK_INT >= 33) add(Manifest.permission.POST_NOTIFICATIONS)
             }
             launcher.launch(perms.toTypedArray())
-        }) { Text(stringResource(R.string.ob_perm_request)) }
-        Text(stringResource(R.string.ob_perm_later), style = MaterialTheme.typography.labelMedium)
+        }, modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.ob_perm_request)) }
+        MutedText(stringResource(R.string.ob_perm_later))
     }
 }
 
@@ -175,14 +192,17 @@ private fun PermissionStep() {
 private fun ProfileStep() {
     val context = LocalContext.current
     val settings by AppSettings.state.collectAsState()
-    Text(stringResource(R.string.ob_profile_title), style = MaterialTheme.typography.headlineSmall)
-    Text(stringResource(R.string.ob_profile_body))
-    ProfileEditor(settings) { f -> AppSettings.update(context, f) }
+    Text(stringResource(R.string.ob_profile_title), style = MaterialTheme.typography.headlineMedium)
+    MutedText(stringResource(R.string.ob_profile_body))
+    SectionCard { ProfileEditor(settings) { f -> AppSettings.update(context, f) } }
 }
 
 @Composable
 private fun DoneStep() {
     Text(stringResource(R.string.ob_done_title), style = MaterialTheme.typography.headlineMedium)
-    Text(stringResource(R.string.ob_done_body))
-    Text(stringResource(R.string.ob_done_privacy), style = MaterialTheme.typography.labelMedium)
+    SectionCard {
+        Text(stringResource(R.string.ob_done_body), style = MaterialTheme.typography.bodyLarge)
+        CardDivider()
+        MutedText(stringResource(R.string.ob_done_privacy))
+    }
 }

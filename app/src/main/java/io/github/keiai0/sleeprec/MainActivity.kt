@@ -243,24 +243,28 @@ internal fun RecorderScreen(stopRequested: Boolean, onStopRequestConsumed: () ->
         if (screenMode == ScreenMode.AUTO_LOCK) {
             // 自動ロック: 通常の画面。画面は端末の設定どおりに消える(動作は通知の経過時間でも確認できる)
             Column(
-                modifier = Modifier.fillMaxSize().padding(24.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterVertically),
+                modifier = Modifier.fillMaxSize().padding(Spacing.screen),
+                verticalArrangement = Arrangement.spacedBy(Spacing.cards, Alignment.CenterVertically),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-                Text(
-                    stringResource(if (pauseReason != null) R.string.state_paused else R.string.state_recording),
-                    style = MaterialTheme.typography.headlineMedium,
-                )
-                startedAt?.let { Text(text = formatClock(elapsed), style = MaterialTheme.typography.displayMedium) }
-                when (pauseReason) {
-                    PauseReason.USER -> Text(stringResource(R.string.paused_note), style = MaterialTheme.typography.bodyMedium)
-                    PauseReason.MIC_BUSY -> Text(stringResource(R.string.mic_busy_note), style = MaterialTheme.typography.bodyMedium)
-                    null -> {}
+                SectionCard {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Pill(
+                            stringResource(if (pauseReason != null) R.string.state_paused else R.string.state_recording),
+                            if (pauseReason != null) Tone.WARN else Tone.GOOD,
+                        )
+                    }
+                    startedAt?.let { Text(text = formatClock(elapsed), style = MaterialTheme.typography.displayMedium) }
+                    when (pauseReason) {
+                        PauseReason.USER -> MutedText(stringResource(R.string.paused_note))
+                        PauseReason.MIC_BUSY -> MutedText(stringResource(R.string.mic_busy_note))
+                        null -> {}
+                    }
+                    if (debuggable) DebugPanel()
                 }
-                if (debuggable) DebugPanel()
                 // マイクを他のアプリに取られている間は、自動で再開するので、ボタンは出さない
                 if (pauseReason != PauseReason.MIC_BUSY) {
-                    OutlinedButton(onClick = ::togglePause) {
+                    OutlinedButton(onClick = ::togglePause, modifier = Modifier.fillMaxWidth()) {
                         Text(stringResource(if (pauseReason != null) R.string.action_resume else R.string.action_pause))
                     }
                 }

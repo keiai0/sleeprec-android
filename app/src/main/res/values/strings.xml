@@ -29,7 +29,7 @@
     <string name="mode_dark_off">完全に暗く</string>
     <string name="mode_dark_off_desc">ほぼ真っ暗。触れると操作</string>
     <string name="state_paused">一時停止中</string>
-    <string name="paused_note">一時停止している間は、音を録音していません。この間は、起きていた時間として扱います。</string>
+    <string name="paused_note">一時停止中は録音していません。この間は、起きていた時間として扱います。</string>
     <string name="action_pause">一時停止</string>
     <string name="action_resume">再開</string>
     <string name="hold_to_finish">長押しで\n終了</string>
@@ -43,7 +43,7 @@
     <string name="mic_busy_text">計測を一時停止しています。マイクが空くと、自動で再開します。</string>
     <string name="mic_resumed_title">マイクが空いたため、計測を再開しました</string>
     <string name="mic_resumed_text">%1$s に再開しました。一時停止していた間は、録音されていません。</string>
-    <string name="mic_busy_note">他のアプリがマイクを使っているため、一時停止しています。マイクが空くと、自動で再開します。</string>
+    <string name="mic_busy_note">他のアプリがマイクを使っています。空くと、自動で再開します。</string>
     <string name="dark_mic_busy">一時停止中(マイク使用中)</string>
     <string name="mood_title">起床時の気分は？</string>
     <string name="mood_hint">スコアの「気分」に使います。あとで、記録の詳細からも入力できます。</string>
@@ -250,6 +250,8 @@
 
     <string name="stats_note_summary">集計の対象と日付の数え方</string>
 
+    <string name="ob_span_label">睡眠時間</string>
+
     <!-- 下部タブ -->
     <string name="tab_record">計測</string>
     <string name="tab_journal">記録</string>
@@ -313,30 +315,30 @@
     <string name="ob_back">戻る</string>
     <string name="ob_start">はじめる</string>
     <string name="ob_welcome">SleepRec へようこそ</string>
-    <string name="ob_welcome_body">スマホのマイクで一晩の睡眠を記録し、いびきや寝言、睡眠のスコアを確認できるアプリです。録音は、この端末の中だけで解析・保存されます。</string>
+    <string name="ob_welcome_body">一晩の睡眠を録音して、いびきやスコアを確認できるアプリです。録音は、この端末の中だけに保存されます。</string>
     <string name="ob_purpose_title">使う目的は？</string>
-    <string name="ob_purpose_hint">当てはまるものを、いくつでも選べます(選ばなくても進めます)。</string>
+    <string name="ob_purpose_hint">いくつでも選べます(選ばなくても進めます)</string>
     <string name="ob_time_title">いつも眠る時間は？</string>
-    <string name="ob_time_body">就寝と起床の時刻を教えてください。目標睡眠時間の初期値に使います。</string>
+    <string name="ob_time_body">就寝と起床の時刻を教えてください。</string>
     <string name="ob_bedtime">就寝</string>
     <string name="ob_waketime">起床</string>
     <string name="ob_span">睡眠時間: %1$d 時間 %2$d 分</string>
-    <string name="ob_span_goal">この長さを、目標睡眠時間の初期値にします(4〜12 時間の範囲に収めます)。設定で、いつでも変えられます。</string>
-    <string name="ob_span_invalid">就寝から起床までは、1〜20 時間になるように入力してください。</string>
-    <string name="ob_reminder_note">就寝前のお知らせ(リマインダー)は、今後のバージョンで追加します。</string>
+    <string name="ob_span_goal">この長さが、目標睡眠時間の初期値になります(設定で変更できます)。</string>
+    <string name="ob_span_invalid">就寝から起床までは、1〜20 時間にしてください。</string>
+    <string name="ob_reminder_note">就寝前のお知らせは、今後追加します。</string>
     <string name="ob_perm_title">権限について</string>
-    <string name="ob_perm_body">一晩の計測のために、次の許可が必要です。</string>
-    <string name="ob_perm_mic">睡眠中の音を録音して、いびきや寝言などを見つけるために使います。音声は、この端末の中だけで解析・保存され、外部へは送信しません。</string>
-    <string name="ob_perm_notif">計測中の経過時間を通知に表示し、マイクが他のアプリに使われたときにお知らせするために使います。</string>
-    <string name="ob_perm_storage">ストレージの権限は使いません。録音は、このアプリ専用の場所に保存します。</string>
+    <string name="ob_perm_body">一晩の計測に、次の許可が必要です。</string>
+    <string name="ob_perm_mic">睡眠中の音を録音して、いびきなどを見つけます。音声は端末の外へ送りません。</string>
+    <string name="ob_perm_notif">経過時間の表示と、マイクの警告に使います。</string>
+    <string name="ob_perm_storage">ストレージの権限は使いません。</string>
     <string name="ob_perm_request">許可する</string>
-    <string name="ob_perm_granted">必要な許可がそろっています。</string>
-    <string name="ob_perm_later">あとで、計測を始めるときや、設定タブの「権限アシスタント」でも許可できます。</string>
+    <string name="ob_perm_granted">必要な許可がそろっています</string>
+    <string name="ob_perm_later">あとで、権限アシスタントでも許可できます。</string>
     <string name="ob_profile_title">プロフィール(任意)</string>
-    <string name="ob_profile_body">入力しなくても、すべての機能を使えます。あとから設定タブでも変えられます。端末の中にだけ保存し、外へは送りません。</string>
+    <string name="ob_profile_body">入力は任意です。端末の中にだけ保存します。</string>
     <string name="ob_done_title">準備ができました</string>
-    <string name="ob_done_body">「計測」タブで開始前の確認を見てから、枕元にスマホを置いて「録音開始」を押してください。朝に、「記録」タブでスコアと録音を確認できます。</string>
-    <string name="ob_done_privacy">録音・記録・プロフィールは、この端末の中にだけ保存されます。設定タブから、いつでもすべて削除できます。</string>
+    <string name="ob_done_body">「計測」タブで開始前の確認を見てから、枕元にスマホを置いて「録音開始」を押してください。</string>
+    <string name="ob_done_privacy">記録は端末の中にだけ保存され、設定タブからいつでも削除できます。</string>
 
     <!-- 権限アシスタント(FR-8.4) -->
     <string name="settings_permissions">権限</string>
@@ -394,7 +396,7 @@
     <string name="stat_snore_value">%1$.1f 回</string>
     <string name="stat_snore_time">1 晩あたり・平均 %1$s</string>
     <string name="stat_max_db">最大音量</string>
-    <string name="stat_max_db_note">dBFS(端末による相対値)</string>
+    <string name="stat_max_db_note">dBFS(相対値)</string>
     <string name="stat_nights">記録した夜</string>
     <string name="stat_nights_value">%1$d / %2$d 日</string>
     <string name="stat_efficiency">平均睡眠効率</string>
@@ -437,6 +439,7 @@
     <string name="session_delete">この記録を削除</string>
     <string name="session_delete_title">この記録を削除しますか？</string>
     <string name="session_delete_body">この記録の音声、音量、イベント、スコアなど、すべてが削除されます。元に戻せません。</string>
+    <string name="list_delete_title">%1$s の記録を削除しますか？</string>
     <string name="session_delete_confirm">削除する</string>
     <string name="delete_title">このイベントを削除しますか？</string>
     <string name="delete_body">音声とイベントの記録が削除されます。元に戻せません。</string>

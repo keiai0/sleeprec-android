@@ -80,11 +80,14 @@ private fun formatTime(ms: Long): String = DateFormat.getTimeInstance(DateFormat
 fun SessionListScreen(onOpen: (Long) -> Unit) {
     val context = LocalContext.current
     val store = remember { SessionStore.create(context) }
+    val scope = rememberCoroutineScope()
     var rows by remember { mutableStateOf<List<Pair<Session, Int>>?>(null) }
+    var deleting by remember { mutableStateOf<Session?>(null) } // 削除の確認待ちの記録
 
-    LaunchedEffect(Unit) {
+    suspend fun reload() {
         rows = withContext(Dispatchers.IO) { store.finishedSessions().map { it to store.eventCount(it.id) } }
     }
+    LaunchedEffect(Unit) { reload() }
 
     Column(Modifier.fillMaxSize().padding(horizontal = Spacing.screen)) {
         PageTitle(stringResource(R.string.list_title), Modifier.padding(top = Spacing.screen, bottom = 12.dp))
@@ -102,14 +105,38 @@ fun SessionListScreen(onOpen: (Long) -> Unit) {
                             Text(formatDateTime(s.startedAt), style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f).padding(end = 8.dp))
                             Pill(stringResource(statusLabel(s.status)), statusTone(s.status))
                         }
-                        Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                            MutedText(stringResource(R.string.list_row_duration, formatDurationJa(sessionEndMs(s))))
-                            MutedText(stringResource(R.string.list_row_events, count))
+                        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                            Column(Modifier.weight(1f)) {
+                                MutedText(stringResource(R.string.list_row_duration, formatDurationJa(sessionEndMs(s))))
+                                MutedText(stringResource(R.string.list_row_events, count))
+                            }
+                            // 一覧から、そのまま削除できる(確認ダイアログあり)
+                            TextButton(onClick = { deleting = s }) {
+                                Text(stringResource(R.string.delete), color = MaterialTheme.colorScheme.error)
+                            }
                         }
                     }
                 }
             }
         }
+    }
+
+    deleting?.let { target ->
+        AlertDialog(
+            onDismissRequest = { deleting = null },
+            title = { Text(stringResource(R.string.list_delete_title, formatDateTime(target.startedAt))) },
+            text = { Text(stringResource(R.string.session_delete_body)) },
+            confirmButton = {
+                TextButton(onClick = {
+                    deleting = null
+                    scope.launch {
+                        withContext(Dispatchers.IO) { store.deleteSession(target.id) }
+                        reload()
+                    }
+                }) { Text(stringResource(R.string.session_delete_confirm), color = MaterialTheme.colorScheme.error) }
+            },
+            dismissButton = { TextButton(onClick = { deleting = null }) { Text(stringResource(R.string.cancel)) } },
+        )
     }
 }
 
