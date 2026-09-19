@@ -1,0 +1,49 @@
+<resources>
+    <string name="app_name">SleepRec</string>
+    <string name="channel_name">録音</string>
+    <string name="notification_title">録音中</string>
+    <string name="notification_stop">停止</string>
+
+    <!-- 画面 -->
+    <string name="state_recording">● 録音中</string>
+    <string name="state_stopped">停止中</string>
+    <string name="button_start">録音開始</string>
+    <string name="button_stop">録音停止</string>
+
+    <!-- 権限 -->
+    <string name="permission_denied">録音にはマイクの許可が必要です。もう一度「録音開始」を押してください。</string>
+    <string name="permission_permanently_denied">マイクの許可が拒否されています。設定画面から許可してください。</string>
+    <string name="open_settings">設定を開く</string>
+
+    <!-- 終了ダイアログ -->
+    <string name="stop_dialog_title">録音を終了しますか？</string>
+    <string name="stop_dialog_elapsed">経過時間: %1$s</string>
+    <string name="stop_msg_not_saved">10分未満の記録は保存されません。</string>
+    <string name="stop_msg_short">10〜30分の記録は Short Sleep として保存されます(分析の対象外です)。</string>
+    <string name="stop_msg_normal">記録を保存して終了します。</string>
+    <string name="action_discard">破棄して終了</string>
+    <string name="action_save_short">Short Sleep として保存</string>
+    <string name="action_save">保存して終了</string>
+    <string name="action_continue">計測を続ける</string>
+
+    <!-- 中断ダイアログ -->
+    <string name="interrupted_title">前回の計測が中断されました</string>
+    <string name="interrupted_body">開始: %1$s\n記録できた時間: %2$s\n原因: %3$s\n\n途中までの記録のため、データが正確でない可能性があります。</string>
+    <string name="ok">OK</string>
+
+    <!-- 時間の表示 -->
+    <string name="duration_hm">%1$d時間%2$d分</string>
+    <string name="duration_m">%1$d分</string>
+
+    <!-- 中断の原因 -->
+    <string name="reason_service_stopped">録音サービスが予期せず停止しました</string>
+    <string name="reason_recorder_error">マイクからの録音に失敗しました(他のアプリがマイクを使用した可能性があります)</string>
+    <string name="reason_os_low_memory">メモリ不足のため、OS がアプリを終了しました</string>
+    <string name="reason_user_killed">アプリが手動で終了されました(最近使ったアプリからの削除、強制停止など)</string>
+    <string name="reason_crash">アプリがクラッシュしたか、応答しなくなりました</string>
+    <string name="reason_system_killed">OS または端末の省電力機能などによって、アプリが強制終了されました</string>
+    <string name="reason_permission_changed">権限の変更により、アプリが終了しました</string>
+    <string name="reason_other">アプリが終了しました(理由: その他)</string>
+    <string name="reason_no_record">終了の記録がありません。電池切れや端末の再起動の可能性があります</string>
+    <string name="reason_unknown">原因を特定できませんでした</string>
+</resources>
